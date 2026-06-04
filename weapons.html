@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>StrongFire – ניהול נשקים</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --bg-body: #F8FAFC; --text-primary: #0F172A;
+            --bg-card: rgba(255,255,255,0.85); --card-shadow: 0 4px 16px rgba(0,0,0,0.04);
+            --border-color: #E2E8F0; --border-card: rgba(226,232,240,0.6);
+            --bg-sidebar: #FFFFFF; --text-sidebar: #475569; --bg-sidebar-hover: #F1F5F9;
+            --bg-topbar-btn: #E2E8F0; --text-topbar-btn: #0F172A;
+            --table-header-bg: #F1F5F9; --table-header-text: #1E293B; --table-row-hover: #F1F5F9;
+            --placeholder-color: rgba(15,23,42,0.6);
+            --sidebar-logo-color: #0F172A; --sidebar-border: #E2E8F0;
+            --chart-card-bg: rgba(255,255,255,0.85); --chart-card-border: rgba(226,232,240,0.6);
+        }
+        body.dark {
+            --bg-body: #0F172A; --text-primary: #F1F5F9;
+            --bg-card: rgba(30,41,59,0.8); --card-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            --border-color: #334155; --border-card: rgba(51,65,85,0.5);
+            --bg-sidebar: #0F172A; --text-sidebar: #CBD5E1; --bg-sidebar-hover: rgba(51,65,85,0.45);
+            --bg-topbar-btn: #334155; --text-topbar-btn: #F1F5F9;
+            --table-header-bg: #1E293B; --table-header-text: #CBD5E1; --table-row-hover: #334155;
+            --placeholder-color: rgba(241,245,249,0.6);
+            --sidebar-logo-color: #F1F5F9; --sidebar-border: #1E293B;
+            --chart-card-bg: rgba(30,41,59,0.8); --chart-card-border: rgba(51,65,85,0.5);
+        }
+        * { box-sizing: border-box; margin:0; padding:0; }
+        html,body { overflow-x: hidden; font-family: 'Segoe UI','Inter',system-ui,sans-serif; background: var(--bg-body); color: var(--text-primary); transition: background 0.3s, color 0.2s; }
+        .sidebar { transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); position: fixed; right:0; top:0; bottom:0; width:220px; z-index:30; transform: translateX(0); background: var(--bg-sidebar); border-left:1px solid var(--sidebar-border); display:flex; flex-direction:column; }
+        .sidebar.collapsed { transform: translateX(100%); }
+        .sidebar-logo { display:flex; align-items:center; gap:0.75rem; padding:1.5rem 1.5rem 2.25rem 1.5rem; }
+        .sidebar-logo i { font-size:1.8rem; color:#3B82F6; background:rgba(59,130,246,0.1); padding:0.6rem; border-radius:0.75rem; }
+        .sidebar-logo span { font-size:1.3rem; font-weight:700; color:var(--sidebar-logo-color); }
+        .sidebar-nav { flex:1; padding:0.5rem 0.75rem; display:flex; flex-direction:column; gap:0.35rem; }
+        .menu-item { transition: all 0.2s ease; display:flex; align-items:center; gap:0.75rem; padding:0.7rem 1rem; border-radius:0.5rem; position:relative; color:var(--text-sidebar); cursor:pointer; font-size:0.95rem; font-weight:500; text-decoration:none; }
+        .menu-item i { width:1.25rem; text-align:center; font-size:1.05rem; }
+        .menu-item:hover { background:var(--bg-sidebar-hover); color:var(--text-primary); }
+        .menu-item.active { background:rgba(59,130,246,0.12); color:#3B82F6; font-weight:600; }
+        .menu-item.active::before { content:''; position:absolute; right:auto; left:0; top:50%; transform:translateY(-50%); width:4px; height:24px; background:#3B82F6; border-radius:0 4px 4px 0; }
+        .sidebar-footer { padding:1rem 1rem 1.5rem 1rem; border-top:1px solid var(--sidebar-border); margin-top:auto; }
+        .theme-toggle-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:0.5rem; padding:0.65rem 1rem; border-radius:0.5rem; background:var(--bg-topbar-btn); color:var(--text-topbar-btn); border:none; cursor:pointer; font-size:0.9rem; font-weight:500; transition:all 0.2s; }
+        .theme-toggle-btn:hover { opacity:0.9; }
+        .topbar-btn { transition:all 0.2s; background:var(--bg-topbar-btn); color:var(--text-topbar-btn); border-radius:9999px; padding:0.35rem 0.75rem; display:inline-flex; align-items:center; gap:0.25rem; border:none; cursor:pointer; font-size:0.85rem; }
+        .topbar-btn:hover { opacity:0.85; }
+        .content-area { transition:margin-right 0.3s; margin-right:220px; padding:24px; height:100vh; overflow-y:auto; }
+        .sidebar.collapsed + .content-area { margin-right:0; }
+        .table-card { background:var(--chart-card-bg); border:1px solid var(--chart-card-border); border-radius:1rem; padding:1rem; box-shadow:var(--card-shadow); backdrop-filter:blur(10px); }
+        .table-wrapper { overflow-x: auto; }
+        table { width:100%; border-collapse:collapse; table-layout:fixed; min-width:800px; }
+        th, td { padding:0.65rem 0.5rem; text-align:right; font-size:0.9rem; overflow:hidden; text-overflow:ellipsis; }
+        th { background:var(--table-header-bg); color:var(--table-header-text); border-bottom:1px solid var(--border-color); cursor:pointer; user-select:none; font-weight:600; white-space:nowrap; }
+        th.sortable i { margin-right:4px; font-size:0.7em; transition:color 0.2s; }
+        th.sortable.active-sort i { color:#3B82F6; }
+        tbody tr { transition:background 0.2s; }
+        tbody tr:hover { background:var(--table-row-hover); }
+        tbody td { border-bottom:1px solid var(--border-color); }
+        .status-badge { padding:0.15rem 0.5rem; border-radius:9999px; font-size:0.7rem; font-weight:600; display:inline-block; }
+        .status-available { background:rgba(16,185,129,0.2); color:#10B981; }
+        .status-assigned { background:rgba(245,158,11,0.2); color:#F59E0B; }
+        .status-maintenance { background:rgba(239,68,68,0.2); color:#EF4444; }
+        .actions-cell { display:flex; gap:0.35rem; }
+        .empty-state { text-align:center; padding:3rem; opacity:0.6; display:none; }
+        .empty-state.visible { display:block; }
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100; }
+        .modal.active { display:flex; }
+        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.5rem; max-width:550px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; max-height:90vh; overflow-y:auto; }
+        @keyframes slideUp { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
+        .modal-close { position:absolute; top:10px; left:10px; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-sidebar); transition:color 0.2s; }
+        .modal-close:hover { color:#EF4444; }
+        .tabs { display:flex; gap:0.25rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); }
+        .tab { padding:0.75rem 1.25rem; cursor:pointer; border-radius:0.5rem 0.5rem 0 0; background:transparent; border:none; color:var(--text-sidebar); font-size:0.9rem; font-weight:500; transition:all 0.2s; position:relative; display:flex; align-items:center; gap:0.5rem; }
+        .tab i { font-size:1rem; }
+        .tab.active { color:#3B82F6; font-weight:600; background:rgba(59,130,246,0.05); }
+        .tab.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:3px; background:#3B82F6; border-radius:3px 3px 0 0; }
+        .tab-content { display:none; padding:0.5rem 0; }
+        .tab-content.active { display:block; }
+        .form-group { margin-bottom:1.25rem; }
+        .form-group label { display:block; margin-bottom:0.35rem; font-weight:500; }
+        .form-group input, .form-group select { width:100%; padding:0.65rem; border:1px solid var(--border-color); border-radius:0.75rem; background:var(--bg-card); color:var(--text-primary); transition:border-color 0.2s; }
+        .form-group input:focus, .form-group select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
+        .history-list { max-height:250px; overflow-y:auto; }
+        .history-item { display:flex; align-items:center; justify-content:space-between; padding:0.5rem 0.75rem; background:var(--bg-card); border:1px solid var(--border-color); border-radius:0.5rem; margin-bottom:0.5rem; }
+        .toast { position:fixed; bottom:20px; left:20px; background:#10B981; color:white; padding:0.75rem 1.25rem; border-radius:0.5rem; z-index:200; animation:slideUp 0.3s ease; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+        .confirm-dialog { position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:150; }
+        .confirm-dialog .dialog-box { background:var(--bg-card); border-radius:1rem; padding:1.5rem; max-width:350px; width:90%; text-align:center; backdrop-filter:blur(10px); animation:slideUp 0.3s ease; }
+        .confirm-dialog .dialog-buttons { display:flex; gap:1rem; justify-content:center; margin-top:1.5rem; }
+        .search-bar { display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem; padding: 0.5rem 1rem; background: var(--chart-card-bg); border: 1px solid var(--chart-card-border); border-radius: 1rem; backdrop-filter: blur(10px); box-shadow: var(--card-shadow); }
+        .search-input-wrapper { flex: 1; display: flex; align-items: center; gap: 0.5rem; }
+        .search-input-wrapper i { color: var(--text-sidebar); font-size: 1rem; opacity: 0.6; }
+        .search-input-wrapper input { flex: 1; border: none; background: transparent; padding: 0.5rem 0; font-size: 0.95rem; color: var(--text-primary); outline: none; }
+        .search-input-wrapper input::placeholder { color: var(--placeholder-color); }
+        @media (max-width:1024px) { .content-area { padding:16px; margin-right:0; } .sidebar { transform:translateX(100%); } .sidebar.collapsed { transform:translateX(0); } .search-bar { flex-direction: column; align-items: stretch; } .tabs { overflow-x:auto; white-space:nowrap; } }
+    </style>
+</head>
+<body class="dark">
+    <aside class="sidebar" role="navigation" aria-label="תפריט ראשי">
+        <div class="sidebar-logo"><i class="fas fa-shield-haltered"></i><span>StrongFire</span></div>
+        <nav class="sidebar-nav" role="menubar">
+            <a href="dashboard.html" class="menu-item"><i class="fas fa-tachometer-alt"></i><span>לוח בקרה</span></a>
+            <a href="employees.html" class="menu-item"><i class="fas fa-users"></i><span>מאבטחים</span></a>
+            <a href="weapons.html" class="menu-item active" aria-current="page"><i class="fas fa-gun"></i><span>נשקים</span></a>
+            <a href="checkout.html" class="menu-item"><i class="fas fa-arrow-right"></i><span>מסירה</span></a>
+            <a href="checkin.html" class="menu-item"><i class="fas fa-arrow-left"></i><span>החזרה</span></a>
+            <a href="alerts.html" class="menu-item"><i class="fas fa-bell"></i><span>התראות</span></a>
+            <a href="reports.html" class="menu-item"><i class="fas fa-chart-line"></i><span>דוחות</span></a>
+            <a href="settings.html" class="menu-item"><i class="fas fa-cog"></i><span>הגדרות</span></a>
+        </nav>
+        <div class="sidebar-footer">
+            <button id="themeToggleSide" class="theme-toggle-btn"><i class="fas fa-sun"></i><span>מצב בהיר</span></button>
+        </div>
+    </aside>
+
+    <div class="content-area">
+        <div class="flex items-center gap-3 mb-6">
+            <button id="menuToggle" class="lg:hidden text-2xl topbar-btn w-10 h-10 rounded-full flex items-center justify-center" aria-label="פתח תפריט"><i class="fas fa-bars"></i></button>
+            <h1 class="text-2xl font-bold" style="font-size: clamp(1.75rem, 2.5vw, 2.25rem);">נשקים</h1>
+        </div>
+        <div class="search-bar">
+            <div class="search-input-wrapper"><i class="fas fa-search"></i><input type="text" id="searchInput" placeholder="חיפוש נשק..."></div>
+            <select id="statusFilter" style="border:1px solid var(--border-color);border-radius:9999px;padding:0.35rem 0.75rem;background:var(--bg-card);color:var(--text-primary);"><option value="">כל הסטטוסים</option><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select>
+            <button id="addBtn" class="topbar-btn px-3 py-1 text-xs"><i class="fas fa-plus"></i> הוסף</button>
+            <button id="refreshBtn" class="topbar-btn w-7 h-7 rounded-full flex items-center justify-center text-xs" aria-label="רענן"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div class="table-card"><div class="table-wrapper">
+            <table id="weaponsTable">
+                <thead><tr>
+                    <th class="sortable" data-sort="serial" style="width:15%;"><i class="fas fa-sort"></i> סיריאלי</th>
+                    <th class="sortable" data-sort="type" style="width:18%;"><i class="fas fa-sort"></i> סוג</th>
+                    <th class="sortable" data-sort="status" style="width:12%;"><i class="fas fa-sort"></i> סטטוס</th>
+                    <th class="sortable" data-sort="location" style="width:14%;"><i class="fas fa-sort"></i> מיקום</th>
+                    <th style="width:18%;">מאבטח משויך</th>
+                    <th style="width:23%;">פעולות</th>
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+            <div id="emptyState" class="empty-state"><i class="fas fa-gun text-3xl mb-2"></i><p>אין נשקים להצגה</p></div>
+        </div></div>
+    </div>
+
+    <div id="weaponModal" class="modal"><div class="modal-content">
+        <button class="modal-close" onclick="closeModal()" aria-label="סגור">&times;</button>
+        <h3 class="text-lg font-bold mb-3" id="modalTitle">הוספת נשק</h3>
+        <div class="tabs">
+            <button class="tab active" data-tab="details"><i class="fas fa-info-circle"></i> פרטים</button>
+            <button class="tab" data-tab="history"><i class="fas fa-history"></i> היסטוריה</button>
+            <button class="tab" data-tab="maintenance"><i class="fas fa-tools"></i> תחזוקה</button>
+        </div>
+        <div class="tab-content active" id="tab-details">
+            <div class="form-group"><label>מספר סיריאלי</label><input type="text" id="inputSerial" required></div>
+            <div class="form-group"><label>סוג נשק</label><select id="inputType"><option value="רובה M16">רובה M16</option><option value="אקדח גלוק">אקדח גלוק</option><option value="רובה תבור">רובה תבור</option><option value="אקדח יריחו">אקדח יריחו</option><option value="רובה צלפים">רובה צלפים</option><option value="אקדח FN">אקדח FN</option><option value="M4">M4</option><option value="מקלע נגב">מקלע נגב</option></select></div>
+            <div class="form-group"><label>סטטוס</label><select id="inputStatus"><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select></div>
+            <div class="form-group"><label>מיקום</label><select id="inputLocation"><option value="כספת A">כספת A</option><option value="כספת B">כספת B</option><option value="כספת C">כספת C</option><option value="נשקיה ראשית">נשקיה ראשית</option><option value="מטווח">מטווח</option></select></div>
+            <div class="form-group"><label>הערות</label><input type="text" id="inputNotes" placeholder="הערות תחזוקה..."></div>
+        </div>
+        <div class="tab-content" id="tab-history">
+            <p class="text-sm opacity-70 mb-2">היסטוריית מסירות</p>
+            <div class="history-list" id="historyList"><p class="text-xs opacity-50">אין היסטוריה</p></div>
+        </div>
+        <div class="tab-content" id="tab-maintenance">
+            <p class="text-sm opacity-70 mb-2">רישומי תחזוקה</p>
+            <div class="history-list" id="maintenanceList"><p class="text-xs opacity-50">אין רישומי תחזוקה</p></div>
+        </div>
+        <div class="flex gap-2 mt-4 justify-end">
+            <button class="topbar-btn px-3 py-1" style="background:#3B82F6; color:white;" id="saveBtn">שמור</button>
+            <button class="topbar-btn px-3 py-1" onclick="closeModal()">ביטול</button>
+        </div>
+    </div></div>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+        async function getData(sheet) { const r = await fetch(`${API_URL}?action=get&sheet=${sheet}`); return r.json(); }
+        async function addData(sheet, data) { const r = await fetch(`${API_URL}?action=add&sheet=${sheet}`, { method: 'POST', body: JSON.stringify(data) }); return r.json(); }
+        async function updateData(sheet, data) { const r = await fetch(`${API_URL}?action=update&sheet=${sheet}`, { method: 'POST', body: JSON.stringify(data) }); return r.json(); }
+        async function deleteData(sheet, data) { const r = await fetch(`${API_URL}?action=delete&sheet=${sheet}`, { method: 'POST', body: JSON.stringify(data) }); return r.json(); }
+
+        const LS_PREFIX = 'strongfire_';
+        let weapons = [], filteredWeapons = [], employees = [], currentEditSerial = null;
+        let sortColumn = 'serial', sortDirection = 'asc';
+
+        function formatDate(iso) { if (!iso) return ''; let d = new Date(iso); if (isNaN(d.getTime())) return iso; return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+
+        function initTheme() { const t = localStorage.getItem(LS_PREFIX+'theme') || (window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'); setTheme(t); }
+        function setTheme(t) { document.body.classList.toggle('dark', t==='dark'); localStorage.setItem(LS_PREFIX+'theme', t); document.getElementById('themeToggleSide').innerHTML = t==='dark' ? '<i class="fas fa-moon"></i><span>מצב כהה</span>' : '<i class="fas fa-sun"></i><span>מצב בהיר</span>'; }
+        function toggleTheme() { setTheme(document.body.classList.contains('dark')?'light':'dark'); }
+
+        async function loadWeapons() { try { weapons = await getData('weapons'); } catch(e) { weapons = []; } applyFilters(); }
+        async function loadEmployees() { try { employees = await getData('employees'); } catch(e) { employees = []; } }
+
+        function getAssignedEmployee(serial) {
+            const emp = employees.find(e => (e.weapons||'').split(',').map(w=>w.trim()).includes(serial));
+            return emp ? `${emp.name} (${emp.national_id||emp.uid})` : '-';
+        }
+
+        function applyFilters() {
+            const term = (document.getElementById('searchInput')?.value||'').toLowerCase();
+            const status = document.getElementById('statusFilter')?.value||'';
+            filteredWeapons = weapons.filter(w => {
+                const matchSearch = !term || w.serial.toLowerCase().includes(term) || w.type.toLowerCase().includes(term) || w.location.toLowerCase().includes(term);
+                return matchSearch && (!status || w.status===status);
+            });
+            sortWeapons(); renderTable();
+        }
+        function sortWeapons() { filteredWeapons.sort((a,b) => { let va=a[sortColumn]||'', vb=b[sortColumn]||''; return (va<vb?-1:(va>vb?1:0)) * (sortDirection==='asc'?1:-1); }); }
+        function renderTable() {
+            const tbody = document.querySelector('#weaponsTable tbody'), emptyState = document.getElementById('emptyState');
+            if (!filteredWeapons.length) { tbody.innerHTML = ''; emptyState.classList.add('visible'); return; }
+            emptyState.classList.remove('visible');
+            tbody.innerHTML = filteredWeapons.map(w => {
+                const statusClass = w.status==='פנוי'?'status-available': (w.status==='משויך'?'status-assigned':'status-maintenance');
+                return `<tr><td>${w.serial}</td><td>${w.type}</td><td><span class="status-badge ${statusClass}">${w.status}</span></td><td>${w.location||'-'}</td><td>${getAssignedEmployee(w.serial)}</td><td><div class="actions-cell"><button class="topbar-btn px-2 py-0.5 text-xs" onclick="editWeapon('${w.serial}')" aria-label="ערוך"><i class="fas fa-edit"></i></button><button class="topbar-btn px-2 py-0.5 text-xs" onclick="deleteWeapon('${w.serial}')" aria-label="מחק"><i class="fas fa-trash"></i></button></div></td></tr>`;
+            }).join('');
+            updateSortIcons();
+        }
+        function updateSortIcons() { document.querySelectorAll('#weaponsTable th.sortable').forEach(th => { const col = th.dataset.sort; th.classList.toggle('active-sort', col===sortColumn); const icon = th.querySelector('i'); if(icon) icon.className = `fas fa-sort${col===sortColumn?(sortDirection==='asc'?'-up':'-down'):''}`; }); }
+
+        function openAddModal() {
+            currentEditSerial = null; document.getElementById('modalTitle').innerText = 'הוספת נשק';
+            ['inputSerial','inputNotes'].forEach(id => document.getElementById(id).value='');
+            document.getElementById('inputType').value='רובה M16'; document.getElementById('inputStatus').value='פנוי'; document.getElementById('inputLocation').value='כספת A';
+            document.getElementById('historyList').innerHTML = '<p class="text-xs opacity-50">אין היסטוריה</p>';
+            document.getElementById('maintenanceList').innerHTML = '<p class="text-xs opacity-50">אין רישומי תחזוקה</p>';
+            document.getElementById('weaponModal').classList.add('active'); switchTab('details');
+        }
+        function editWeapon(serial) {
+            const w = weapons.find(w => w.serial===serial); if(!w) return;
+            currentEditSerial = serial; document.getElementById('modalTitle').innerText = 'עריכת נשק';
+            document.getElementById('inputSerial').value=w.serial; document.getElementById('inputType').value=w.type;
+            document.getElementById('inputStatus').value=w.status; document.getElementById('inputLocation').value=w.location||'כספת A';
+            document.getElementById('inputNotes').value=w.notes||'';
+            document.getElementById('historyList').innerHTML = '<p class="text-xs opacity-50">אין היסטוריה</p>';
+            document.getElementById('maintenanceList').innerHTML = '<p class="text-xs opacity-50">אין רישומי תחזוקה</p>';
+            document.getElementById('weaponModal').classList.add('active'); switchTab('details');
+        }
+        function closeModal() { document.getElementById('weaponModal').classList.remove('active'); }
+        function switchTab(tabName) { document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab===tabName)); document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id==='tab-'+tabName)); }
+
+        function showToast(msg, type='success') { const toast = document.createElement('div'); toast.className = 'toast'; toast.style.background = type==='error'?'#EF4444':'#10B981'; toast.innerHTML = `<i class="fas ${type==='error'?'fa-exclamation-circle':'fa-check-circle'} mr-1"></i> ${msg}`; document.body.appendChild(toast); setTimeout(()=>toast.remove(), 2500); }
+
+        function confirmDelete(serial) { const dialog = document.createElement('div'); dialog.className = 'confirm-dialog'; dialog.innerHTML = `<div class="dialog-box"><h3 class="font-bold mb-2">מחיקת נשק</h3><p>האם אתה בטוח?</p><div class="dialog-buttons"><button class="topbar-btn px-4 py-1" id="cancelDelete">ביטול</button><button class="topbar-btn px-4 py-1" style="background:#EF4444; color:white;" id="confirmDelete">מחק</button></div></div>`; document.body.appendChild(dialog); document.getElementById('cancelDelete').addEventListener('click', ()=>dialog.remove()); document.getElementById('confirmDelete').addEventListener('click', async () => { await deleteData('weapons', {id: serial}); await loadWeapons(); showToast('נשק נמחק'); dialog.remove(); }); }
+        function deleteWeapon(serial) { confirmDelete(serial); }
+
+        async function saveWeapon() {
+            const serial = document.getElementById('inputSerial').value.trim();
+            if(!serial) return showToast('אנא מלא מספר סיריאלי', 'error');
+            const data = { serial, type: document.getElementById('inputType').value, status: document.getElementById('inputStatus').value, location: document.getElementById('inputLocation').value, notes: document.getElementById('inputNotes').value };
+            if (currentEditSerial) { data.id = currentEditSerial; await updateData('weapons', data); showToast('נשק עודכן'); }
+            else { if(weapons.some(w=>w.serial===serial)) return showToast('מספר סיריאלי קיים', 'error'); await addData('weapons', data); showToast('נשק נוסף'); }
+            await loadWeapons(); closeModal();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme(); loadWeapons(); loadEmployees();
+            document.getElementById('themeToggleSide').addEventListener('click', toggleTheme);
+            document.getElementById('menuToggle').addEventListener('click', ()=>document.querySelector('.sidebar').classList.toggle('collapsed'));
+            document.getElementById('searchInput').addEventListener('input', applyFilters);
+            document.getElementById('statusFilter').addEventListener('change', applyFilters);
+            document.getElementById('addBtn').addEventListener('click', openAddModal);
+            document.getElementById('saveBtn').addEventListener('click', saveWeapon);
+            document.getElementById('refreshBtn').addEventListener('click', async ()=>{ document.getElementById('refreshBtn').querySelector('i').classList.add('fa-spin'); await loadWeapons(); await loadEmployees(); document.getElementById('refreshBtn').querySelector('i').classList.remove('fa-spin'); });
+            document.querySelectorAll('#weaponsTable th.sortable').forEach(th => { th.addEventListener('click', () => { const col = th.dataset.sort; sortDirection = sortColumn===col ? (sortDirection==='asc'?'desc':'asc') : 'asc'; sortColumn = col; applyFilters(); }); });
+            document.querySelectorAll('.tab').forEach(tab => { tab.addEventListener('click', () => switchTab(tab.dataset.tab)); });
+            document.getElementById('weaponModal').addEventListener('click', (e) => { if(e.target===document.getElementById('weaponModal')) closeModal(); });
+            window.addEventListener('keydown', (e) => { if(e.key==='Escape' && document.getElementById('weaponModal').classList.contains('active')) closeModal(); });
+        });
+    </script>
+</body>
+</html>
