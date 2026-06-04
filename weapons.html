@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>StrongFire – נשקים</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* (same CSS) */
+    </style>
+</head>
+<body class="dark">
+    <aside class="sidebar">…</aside>
+    <div class="content-area">
+        <h1 class="text-2xl font-bold mb-5">נשקים</h1>
+        <div class="search-bar">
+            <input type="text" id="wepSearch" placeholder="חיפוש…">
+            <select id="wepStatusFilter"><option value="">כל הסטטוסים</option><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select>
+            <button id="addBtn" class="topbar-btn"><i class="fas fa-plus"></i> הוסף</button>
+            <button id="refreshBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div class="table-card"><table id="weaponsTable"><thead><tr><th>סיריאלי</th><th>סוג</th><th>סטטוס</th><th>מיקום</th><th>מאבטח</th><th>פעולות</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <iframe name="hiddenFrame" style="display:none;"></iframe>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+        function jsonp(url) { /* same */ }
+        async function getData(sheet) { return jsonp(`${API_URL}?action=get&sheet=${sheet}`); }
+        function postForm(action, data) { /* same as employees */ }
+
+        async function loadWeapons() {
+            const [weapons, employees] = await Promise.all([getData('weapons'), getData('employees')]);
+            const tbody = document.querySelector('#weaponsTable tbody');
+            const term = document.getElementById('wepSearch').value.toLowerCase();
+            const status = document.getElementById('wepStatusFilter').value;
+            const filtered = weapons.filter(w => 
+                (!term || w.serial.toLowerCase().includes(term) || w.type.toLowerCase().includes(term)) &&
+                (!status || w.status === status)
+            );
+            tbody.innerHTML = filtered.map(w => {
+                const emp = employees.find(e => (e.weapons||'').split(',').map(x=>x.trim()).includes(w.serial));
+                const empName = emp ? `${emp.name} (${emp.national_id})` : '-';
+                return `<tr><td>${w.serial}</td><td>${w.type}</td>
+                <td><span class="status-badge ${w.status==='פנוי'?'status-available':'status-assigned'}">${w.status}</span></td>
+                <td>${w.location||''}</td><td>${empName}</td>
+                <td>
+                    <button class="topbar-btn px-2 py-0.5" onclick="editWeapon('${w.serial}')"><i class="fas fa-edit"></i></button>
+                    <button class="topbar-btn px-2 py-0.5" onclick="deleteWeapon('${w.serial}')"><i class="fas fa-trash"></i></button>
+                </td></tr>`;
+            }).join('');
+        }
+
+        document.getElementById('addBtn').onclick = () => {
+            const serial = prompt('סיריאלי'); if(!serial) return;
+            const type = prompt('סוג'); if(!type) return;
+            const location = prompt('מיקום', 'כספת A');
+            postForm('add', { sheet:'weapons', serial, type, status:'פנוי', location });
+            setTimeout(loadWeapons, 500);
+        };
+
+        window.editWeapon = async (serial) => {
+            const wep = (await getData('weapons')).find(w => w.serial == serial);
+            if(!wep) return;
+            const status = prompt('סטטוס (פנוי/משויך/בטיפול/מושבת)', wep.status);
+            const location = prompt('מיקום', wep.location);
+            postForm('update', { sheet:'weapons', serial, status, location });
+            setTimeout(loadWeapons, 500);
+        };
+
+        window.deleteWeapon = (serial) => {
+            if(confirm('למחוק?')) {
+                postForm('delete', { sheet:'weapons', serial });
+                setTimeout(loadWeapons, 500);
+            }
+        };
+
+        document.getElementById('wepSearch').addEventListener('input', loadWeapons);
+        document.getElementById('wepStatusFilter').addEventListener('change', loadWeapons);
+        document.getElementById('refreshBtn').addEventListener('click', loadWeapons);
+        loadWeapons();
+    </script>
+</body>
+</html>
