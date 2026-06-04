@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>StrongFire – מאבטחים</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* (העתק את אותו CSS כמו dashboard) */
+    </style>
+</head>
+<body class="dark">
+    <aside class="sidebar">…</aside>
+    <div class="content-area">
+        <h1 class="text-2xl font-bold mb-5">מאבטחים</h1>
+        <div class="search-bar">
+            <input type="text" id="empSearch" placeholder="חיפוש…">
+            <select id="empLevelFilter"><option value="">כל התפקידים</option><option value="שומר">שומר</option><option value="מאבטח">מאבטח</option><option value="מנהל יחידה">מנהל יחידה</option></select>
+            <button id="addBtn" class="topbar-btn"><i class="fas fa-plus"></i> הוסף</button>
+            <button id="refreshBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div class="table-card"><table id="employeesTable"><thead><tr><th>#</th><th>שם</th><th>ת.ז.</th><th>תפקיד</th><th>קורס</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody></tbody></table></div>
+    </div>
+    <iframe name="hiddenFrame" style="display:none;"></iframe>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+        function jsonp(url) { /* same as dashboard */ }
+        async function getData(sheet) { return jsonp(`${API_URL}?action=get&sheet=${sheet}`); }
+
+        function postForm(action, data) {
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = API_URL;
+            form.target = 'hiddenFrame';
+            const actionInput = document.createElement('input'); actionInput.name = 'action'; actionInput.value = action;
+            form.appendChild(actionInput);
+            const sheetInput = document.createElement('input'); sheetInput.name = 'sheet'; sheetInput.value = data.sheet || 'employees';
+            form.appendChild(sheetInput);
+            for (let key in data) {
+                const input = document.createElement('input'); input.name = key; input.value = data[key];
+                form.appendChild(input);
+            }
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 200);
+        }
+
+        async function loadEmployees() {
+            const employees = await getData('employees');
+            const weapons = await getData('weapons');
+            const tbody = document.querySelector('#employeesTable tbody');
+            const term = document.getElementById('empSearch').value.toLowerCase();
+            const level = document.getElementById('empLevelFilter').value;
+            const filtered = employees.filter(e => 
+                (!term || e.name.toLowerCase().includes(term) || e.national_id.includes(term)) &&
+                (!level || e.level === level)
+            );
+            tbody.innerHTML = filtered.map(e => {
+                const wep = e.weapons ? e.weapons.split(',').slice(0,2).join(', ') : 'אין';
+                return `<tr><td>${e.uid}</td><td>${e.name}</td><td>${e.national_id}</td><td>${e.level}</td><td>${e.course||''}</td>
+                <td><span class="status-badge ${e.status==='פעיל'?'status-active':'status-blocked'}">${e.status}</span></td>
+                <td>
+                    <button class="topbar-btn px-2 py-0.5" onclick="editEmployee('${e.national_id}')"><i class="fas fa-edit"></i></button>
+                    <button class="topbar-btn px-2 py-0.5" onclick="deleteEmployee('${e.national_id}')"><i class="fas fa-trash"></i></button>
+                </td></tr>`;
+            }).join('');
+        }
+
+        document.getElementById('addBtn').onclick = () => {
+            const name = prompt('שם'); if(!name) return;
+            const natId = prompt('ת.ז.'); if(!natId) return;
+            const level = prompt('תפקיד (שומר/מאבטח/מנהל יחידה)', 'מאבטח');
+            const course = prompt('קורס (בסיס/א\'/ב\'/א\' מתקדם)', 'בסיס');
+            postForm('add', { sheet:'employees', name, national_id:natId, level, course, status:'פעיל' });
+            setTimeout(loadEmployees, 500);
+        };
+
+        window.editEmployee = async (natId) => {
+            const emp = (await getData('employees')).find(e => e.national_id == natId);
+            if(!emp) return;
+            const name = prompt('שם', emp.name); if(!name) return;
+            const level = prompt('תפקיד', emp.level);
+            const course = prompt('קורס', emp.course);
+            const status = prompt('סטטוס (פעיל/חסום)', emp.status);
+            postForm('update', { sheet:'employees', national_id:natId, name, level, course, status });
+            setTimeout(loadEmployees, 500);
+        };
+
+        window.deleteEmployee = (natId) => {
+            if(confirm('למחוק?')) {
+                postForm('delete', { sheet:'employees', national_id:natId });
+                setTimeout(loadEmployees, 500);
+            }
+        };
+
+        document.getElementById('empSearch').addEventListener('input', loadEmployees);
+        document.getElementById('empLevelFilter').addEventListener('change', loadEmployees);
+        document.getElementById('refreshBtn').addEventListener('click', loadEmployees);
+        loadEmployees();
+    </script>
+</body>
+</html>
