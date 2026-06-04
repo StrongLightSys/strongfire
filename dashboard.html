@@ -38,11 +38,11 @@
         html,body { overflow-x: hidden; font-family: 'Segoe UI','Inter',system-ui,sans-serif; background: var(--bg-body); color: var(--text-primary); transition: background 0.3s, color 0.2s; }
         .sidebar { transition: transform 0.3s; position: fixed; right:0; top:0; bottom:0; width:220px; z-index:30; background: var(--bg-sidebar); border-left:1px solid var(--sidebar-border); display:flex; flex-direction:column; }
         .sidebar.collapsed { transform: translateX(100%); }
-        .sidebar-logo { display:flex; align-items:center; gap:0.75rem; padding:1.5rem 1.5rem 2.25rem; }
+        .sidebar-logo { display:flex; align-items:center; gap:0.75rem; padding:1.5rem 1.5rem 2.25rem 1.5rem; }
         .sidebar-logo i { font-size:1.8rem; color:#3B82F6; background:rgba(59,130,246,0.1); padding:0.6rem; border-radius:0.75rem; }
         .sidebar-logo span { font-size:1.3rem; font-weight:700; color:var(--sidebar-logo-color); }
         .sidebar-nav { flex:1; padding:0.5rem 0.75rem; display:flex; flex-direction:column; gap:0.35rem; }
-        .menu-item { transition: all 0.2s; display:flex; align-items:center; gap:0.75rem; padding:0.7rem 1rem; border-radius:0.5rem; color:var(--text-sidebar); font-size:0.95rem; text-decoration:none; }
+        .menu-item { transition: all 0.2s; display:flex; align-items:center; gap:0.75rem; padding:0.7rem 1rem; border-radius:0.5rem; color:var(--text-sidebar); font-size:0.95rem; text-decoration:none; position:relative; }
         .menu-item i { width:1.25rem; text-align:center; }
         .menu-item:hover { background:var(--bg-sidebar-hover); color:var(--text-primary); }
         .menu-item.active { background:rgba(59,130,246,0.12); color:#3B82F6; font-weight:600; }
@@ -118,16 +118,36 @@
             });
         }
 
-        async function getData(sheet) { return jsonp(`${API_URL}?action=get&sheet=${sheet}`); }
-
         function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
 
-        async function loadDashboard() {
-            const employees = await getData('employees');
-            const weapons = await getData('weapons');
-            const checkouts = await getData('checkouts');
-            const alerts = await getData('alerts');
+        async function loadDashboard(forceRefresh = false) {
+            const CACHE_KEY = 'dashboard_cache';
+            const CACHE_TIME = 60000; // דקה
 
+            if (!forceRefresh) {
+                const cached = sessionStorage.getItem(CACHE_KEY);
+                if (cached) {
+                    const { data, timestamp } = JSON.parse(cached);
+                    if (Date.now() - timestamp < CACHE_TIME) {
+                        renderDashboard(data);
+                        return;
+                    }
+                }
+            }
+
+            const allData = await jsonp(API_URL + '?action=dashboard');
+            const data = {
+                employees: allData.employees || [],
+                weapons: allData.weapons || [],
+                checkouts: allData.checkouts || [],
+                alerts: allData.alerts || []
+            };
+
+            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+            renderDashboard(data);
+        }
+
+        function renderDashboard({ employees, weapons, checkouts, alerts }) {
             const totalWeapons = weapons.length;
             const weaponsOut = checkouts.filter(c => c.status === 'פעיל').length;
             const overdue = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(Date.now() - 7*86400000)).length;
@@ -160,7 +180,7 @@
             document.getElementById('overdueTable').innerHTML = '<tr><th>סיריאלי</th><th>מאבטח</th><th>תאריך</th></tr>' + checkouts.filter(c => c.status==='פעיל' && new Date(c.checkout_date) < new Date(Date.now()-7*86400000)).map(c => `<tr><td>${c.weapon_serial}</td><td>${employees.find(e => e.uid==c.employee_uid)?.name||'?'}</td><td>${formatDate(c.checkout_date)}</td></tr>`).join('');
         }
 
-        document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+        document.getElementById('refreshBtn').addEventListener('click', () => loadDashboard(true));
         document.getElementById('themeToggleSide').addEventListener('click', () => {
             const isDark = document.body.classList.toggle('dark');
             localStorage.setItem('strongfire_theme', isDark ? 'dark' : 'light');
