@@ -2,7 +2,7 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>StrongFire – לוח בקרה</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -89,9 +89,9 @@
     <aside class="sidebar">
         <div class="sidebar-logo"><i class="fas fa-shield-haltered"></i><span>StrongFire</span></div>
         <nav class="sidebar-nav">
-            <a href="dashboard.html" class="menu-item active" data-page="dashboard"><i class="fas fa-tachometer-alt"></i> לוח בקרה</a>
-            <a href="employees.html" class="menu-item" data-page="employees"><i class="fas fa-users"></i> מאבטחים</a>
-            <a href="weapons.html" class="menu-item" data-page="weapons"><i class="fas fa-gun"></i> נשקים</a>
+            <a href="dashboard.html" class="menu-item active"><i class="fas fa-tachometer-alt"></i> לוח בקרה</a>
+            <a href="employees.html" class="menu-item"><i class="fas fa-users"></i> מאבטחים</a>
+            <a href="weapons.html" class="menu-item"><i class="fas fa-gun"></i> נשקים</a>
             <a href="checkout.html" class="menu-item"><i class="fas fa-arrow-right"></i> מסירה</a>
             <a href="checkin.html" class="menu-item"><i class="fas fa-arrow-left"></i> החזרה</a>
             <a href="alerts.html" class="menu-item"><i class="fas fa-bell"></i> התראות</a>
@@ -145,51 +145,97 @@
     </div>
 
     <script>
+        // ===================== API CONFIG =====================
         const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+        async function getData(sheet) {
+            const res = await fetch(`${API_URL}?action=get&sheet=${sheet}`);
+            if (!res.ok) throw new Error(`שגיאת רשת: ${res.status}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            return data;
+        }
+
+        // ===================== GLOBAL STATE =====================
         const LS_PREFIX = 'strongfire_';
-        let realData = { totalWeapons: 0, weaponsOut: 0, overdueWeapons: 0, totalEmployees: 0, blockedEmployees: 0, weaponsInSafe: 0, activeEmployees: 0, highAlerts: [], blockedList: [], overdueList: [] };
+        let realData = {
+            totalWeapons: 0, weaponsOut: 0, overdueWeapons: 0,
+            totalEmployees: 0, blockedEmployees: 0, weaponsInSafe: 0, activeEmployees: 0,
+            highAlerts: [], blockedList: [], overdueList: []
+        };
         let theme = localStorage.getItem(LS_PREFIX + 'theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-        let chartsInitialized = false, chartLine, chartDonut, wsInterval = null;
+        let chartsInitialized = false;
+        let chartLine, chartDonut;
+        let wsInterval = null;
 
+        // ===================== HELPERS =====================
         function isDark() { return document.body.classList.contains('dark'); }
-        function formatDate(iso) { if (!iso) return '-'; const d = new Date(iso); if (isNaN(d.getTime())) return iso; return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+        function formatDate(iso) {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return iso;
+            return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+        }
 
-        async function getData(sheet) { const r = await fetch(`${API_URL}?action=get&sheet=${sheet}`); return r.json(); }
-
+        // ===================== DATA FETCHING =====================
         async function loadDashboardData() {
             try {
                 const [employees, weapons, checkouts, alerts] = await Promise.all([
-                    getData('employees'), getData('weapons'), getData('checkouts'), getData('alerts')
+                    getData('employees'),
+                    getData('weapons'),
+                    getData('checkouts'),
+                    getData('alerts')
                 ]);
+
                 realData.totalWeapons = weapons.length;
-                realData.weaponsOut = checkouts.filter(c => c.status === 'פעיל').length;
+                const activeCheckouts = checkouts.filter(c => c.status === 'פעיל');
+                realData.weaponsOut = activeCheckouts.length;
+
                 const now = new Date();
-                realData.overdueWeapons = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(now - 7*86400000)).length;
+                const weekAgo = new Date(now.getTime() - 7 * 86400000);
+                realData.overdueWeapons = activeCheckouts.filter(c => new Date(c.checkout_date) < weekAgo).length;
+
                 realData.totalEmployees = employees.length;
                 realData.blockedEmployees = employees.filter(e => e.status === 'חסום').length;
                 realData.weaponsInSafe = realData.totalWeapons - realData.weaponsOut;
                 realData.activeEmployees = realData.totalEmployees - realData.blockedEmployees;
-                realData.highAlerts = alerts.filter(a => a.severity === 'גבוה' && a.status === 'פתוח').map(a => `${a.date} - ${a.message}`);
-                realData.blockedList = employees.filter(e => e.status === 'חסום').map(e => ({
-                    name: e.name, id: e.national_id, level: e.level,
-                    weapons: e.weapons ? e.weapons.split(',').slice(0,2).join(', ') : 'אין'
-                }));
-                realData.overdueList = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(now - 7*86400000)).map(c => ({
-                    serial: c.weapon_serial,
-                    employee: employees.find(e => e.uid == c.employee_uid)?.name || '?',
-                    checkout_date: formatDate(c.checkout_date),
-                    checkin_date: c.checkin_date ? formatDate(c.checkin_date) : 'טרם הוחזר'
-                }));
-            } catch (e) { console.error('Failed to load data', e); }
+
+                realData.highAlerts = alerts
+                    .filter(a => a.severity === 'גבוה' && a.status === 'פתוח')
+                    .map(a => `${a.date} - ${a.message}`);
+
+                realData.blockedList = employees
+                    .filter(e => e.status === 'חסום')
+                    .map(e => ({
+                        name: e.name,
+                        id: e.national_id,
+                        level: e.level
+                    }));
+
+                realData.overdueList = activeCheckouts
+                    .filter(c => new Date(c.checkout_date) < weekAgo)
+                    .map(c => ({
+                        serial: c.weapon_serial,
+                        employee: employees.find(emp => emp.uid == c.employee_uid)?.name || '?',
+                        checkout_date: formatDate(c.checkout_date),
+                        checkin_date: c.checkin_date ? formatDate(c.checkin_date) : 'טרם הוחזר'
+                    }));
+
+                return true;
+            } catch (error) {
+                console.error('טעינת נתונים נכשלה:', error);
+                alert('אירעה שגיאה בטעינת הנתונים. אנא ודא שה‑API פעיל וזמין.');
+                return false;
+            }
         }
 
+        // ===================== UI RENDERING =====================
         const kpiCardsMeta = [
             { id: 'totalWeapons', title: 'סה"כ נשקים', valueKey: 'totalWeapons', borderClass: 'neutral', icon: 'fa-gun', iconColor: 'purple' },
-            { id: 'weaponsInSafe', title: 'נשקים בכספת', valueKey: 'weaponsInSafe', borderClass: 'info', progress: true, progressColor: 'linear-gradient(90deg, #2563EB, #3B82F6)', icon: 'fa-shield-alt', iconColor: 'blue' },
+            { id: 'weaponsInSafe', title: 'נשקים בכספת', valueKey: 'weaponsInSafe', borderClass: 'info', icon: 'fa-shield-alt', iconColor: 'blue', progress: true, progressColor: 'linear-gradient(90deg, #2563EB, #3B82F6)' },
             { id: 'weaponsOut', title: 'נשקים בחוץ', valueKey: 'weaponsOut', borderClass: '', icon: 'fa-arrow-right', iconColor: 'amber' },
             { id: 'overdueWeapons', title: 'נשקים באיחור', valueKey: 'overdueWeapons', borderClass: 'warning', icon: 'fa-clock', iconColor: 'red' },
             { id: 'totalEmployees', title: 'סה"כ עובדים', valueKey: 'totalEmployees', borderClass: 'neutral', icon: 'fa-users', iconColor: 'purple' },
-            { id: 'activeEmployees', title: 'עובדים כשירים', valueKey: 'activeEmployees', borderClass: 'positive', progress: true, progressColor: 'linear-gradient(90deg, #059669, #10B981)', icon: 'fa-check-circle', iconColor: 'green' },
+            { id: 'activeEmployees', title: 'עובדים כשירים', valueKey: 'activeEmployees', borderClass: 'positive', icon: 'fa-check-circle', iconColor: 'green', progress: true, progressColor: 'linear-gradient(90deg, #059669, #10B981)' },
             { id: 'blockedEmployees', title: 'עובדים חסומים', valueKey: 'blockedEmployees', borderClass: 'warning', icon: 'fa-ban', iconColor: 'red' }
         ];
 
@@ -197,24 +243,27 @@
             const container = document.getElementById('kpiGrid');
             let html = '';
             kpiCardsMeta.forEach(card => {
-                let progressHtml = card.progress ? `<div class="progress-bar"><div class="progress-fill" style="width:0%; background:${card.progressColor};" id="progress-${card.id}"></div></div>` : '';
+                let progressHtml = card.progress
+                    ? `<div class="progress-bar"><div class="progress-fill" style="width:0%; background:${card.progressColor};" id="progress-${card.id}"></div></div>`
+                    : '';
                 html += `<div class="kpi-card ${card.borderClass}" data-id="${card.id}">
                     <div class="kpi-icon ${card.iconColor}"><i class="fas ${card.icon}"></i></div>
                     <div class="text-xs opacity-75">${card.title}</div>
                     <div class="text-2xl font-bold kpi-value">--</div>${progressHtml}</div>`;
             });
             container.innerHTML = html;
-            updateKpiValues();
         }
+
         function updateKpiValues() {
             document.querySelectorAll('.kpi-card').forEach(card => {
-                let id = card.dataset.id, valEl = card.querySelector('.kpi-value');
+                const id = card.dataset.id;
+                const valEl = card.querySelector('.kpi-value');
                 if (valEl && realData[id] !== undefined) valEl.innerText = realData[id];
-                let pf = document.getElementById('progress-' + id);
+                const pf = document.getElementById('progress-' + id);
                 if (pf) {
                     let pct = 0;
-                    if (id === 'weaponsInSafe') pct = Math.min(100, Math.round((realData.weaponsInSafe / Math.max(1,realData.totalWeapons)) * 100));
-                    else if (id === 'activeEmployees') pct = Math.min(100, Math.round((realData.activeEmployees / Math.max(1,realData.totalEmployees)) * 100));
+                    if (id === 'weaponsInSafe') pct = Math.min(100, Math.round((realData.weaponsInSafe / Math.max(1, realData.totalWeapons)) * 100));
+                    else if (id === 'activeEmployees') pct = Math.min(100, Math.round((realData.activeEmployees / Math.max(1, realData.totalEmployees)) * 100));
                     pf.style.width = pct + '%';
                 }
             });
@@ -225,15 +274,17 @@
             c.innerHTML = realData.highAlerts.length ? realData.highAlerts.map(a => `<li>${a}</li>`).join('') : '<li>אין התראות גבוהות</li>';
         }
 
-        // טבלאות – מיון וחיפוש
+        // ===================== TABLES =====================
         let blockedSort = { col: 'name', dir: 'asc' };
         let overdueSort = { col: 'serial', dir: 'asc' };
 
         function sortTableData(data, col, dir) {
-            return [...data].sort((a,b) => {
-                let valA = a[col]||'', valB = b[col]||'';
-                if (col === 'id') { valA = parseInt(valA); valB = parseInt(valB); }
-                if (col === 'checkout_date' || col === 'checkin_date') { valA = new Date(valA); valB = new Date(valB); }
+            return [...data].sort((a, b) => {
+                let valA = a[col] || '', valB = b[col] || '';
+                if (col === 'id' || col === 'checkout_date' || col === 'checkin_date') {
+                    valA = col === 'id' ? parseInt(valA) : new Date(valA);
+                    valB = col === 'id' ? parseInt(valB) : new Date(valB);
+                }
                 return (valA < valB ? -1 : valA > valB ? 1 : 0) * (dir === 'asc' ? 1 : -1);
             });
         }
@@ -245,20 +296,19 @@
             const blockedTable = document.getElementById('blockedTable');
             blockedTable.innerHTML = `
                 <thead><tr>
-                    <th class="sortable" data-sort="name" style="width:25%;"><i class="fas fa-sort${blockedSort.col==='name'?(blockedSort.dir==='asc'?'-up':'-down'):''}"></i> שם</th>
-                    <th class="sortable" data-sort="id" style="width:20%;"><i class="fas fa-sort${blockedSort.col==='id'?(blockedSort.dir==='asc'?'-up':'-down'):''}"></i> ת.ז.</th>
-                    <th class="sortable" data-sort="level" style="width:20%;"><i class="fas fa-sort${blockedSort.col==='level'?(blockedSort.dir==='asc'?'-up':'-down'):''}"></i> רמה</th>
-                    <th style="width:35%;">נשק משויך</th>
+                    <th class="sortable" data-sort="name" style="width:30%;"><i class="fas fa-sort${blockedSort.col==='name' ? (blockedSort.dir==='asc'?'-up':'-down') : ''}"></i> שם</th>
+                    <th class="sortable" data-sort="id" style="width:30%;"><i class="fas fa-sort${blockedSort.col==='id' ? (blockedSort.dir==='asc'?'-up':'-down') : ''}"></i> ת.ז.</th>
+                    <th class="sortable" data-sort="level" style="width:40%;"><i class="fas fa-sort${blockedSort.col==='level' ? (blockedSort.dir==='asc'?'-up':'-down') : ''}"></i> רמה</th>
                 </tr></thead>
-                <tbody>${blockedSorted.map(e => `<tr><td>${e.name}</td><td>${e.id}</td><td>${e.level}</td><td>${e.weapons||'אין'}</td></tr>`).join('')}</tbody>`;
+                <tbody>${blockedSorted.map(e => `<tr><td>${e.name}</td><td>${e.id}</td><td>${e.level}</td></tr>`).join('')}</tbody>`;
 
             const overdueTable = document.getElementById('overdueTable');
             overdueTable.innerHTML = `
                 <thead><tr>
-                    <th class="sortable" data-sort="serial" style="width:20%;"><i class="fas fa-sort${overdueSort.col==='serial'?(overdueSort.dir==='asc'?'-up':'-down'):''}"></i> סיריאלי</th>
-                    <th class="sortable" data-sort="employee" style="width:25%;"><i class="fas fa-sort${overdueSort.col==='employee'?(overdueSort.dir==='asc'?'-up':'-down'):''}"></i> מאבטח</th>
-                    <th class="sortable" data-sort="checkout_date" style="width:25%;"><i class="fas fa-sort${overdueSort.col==='checkout_date'?(overdueSort.dir==='asc'?'-up':'-down'):''}"></i> תאריך מסירה</th>
-                    <th class="sortable" data-sort="checkin_date" style="width:30%;"><i class="fas fa-sort${overdueSort.col==='checkin_date'?(overdueSort.dir==='asc'?'-up':'-down'):''}"></i> תאריך החזרה</th>
+                    <th class="sortable" data-sort="serial" style="width:20%;"><i class="fas fa-sort${overdueSort.col==='serial' ? (overdueSort.dir==='asc'?'-up':'-down') : ''}"></i> סיריאלי</th>
+                    <th class="sortable" data-sort="employee" style="width:25%;"><i class="fas fa-sort${overdueSort.col==='employee' ? (overdueSort.dir==='asc'?'-up':'-down') : ''}"></i> מאבטח</th>
+                    <th class="sortable" data-sort="checkout_date" style="width:25%;"><i class="fas fa-sort${overdueSort.col==='checkout_date' ? (overdueSort.dir==='asc'?'-up':'-down') : ''}"></i> תאריך מסירה</th>
+                    <th class="sortable" data-sort="checkin_date" style="width:30%;"><i class="fas fa-sort${overdueSort.col==='checkin_date' ? (overdueSort.dir==='asc'?'-up':'-down') : ''}"></i> תאריך החזרה</th>
                 </tr></thead>
                 <tbody>${overdueSorted.map(w => `<tr><td>${w.serial}</td><td>${w.employee}</td><td>${w.checkout_date}</td><td>${w.checkin_date}</td></tr>`).join('')}</tbody>`;
 
@@ -268,114 +318,159 @@
 
         function attachSortEvents() {
             document.querySelectorAll('#blockedTable th.sortable').forEach(th => {
-                th.addEventListener('click', () => {
+                th.onclick = () => {
                     const col = th.dataset.sort;
-                    if (blockedSort.col === col) blockedSort.dir = blockedSort.dir === 'asc' ? 'desc' : 'asc';
-                    else { blockedSort.col = col; blockedSort.dir = 'asc'; }
+                    blockedSort.dir = blockedSort.col === col ? (blockedSort.dir === 'asc' ? 'desc' : 'asc') : 'asc';
+                    blockedSort.col = col;
                     renderTables();
-                });
+                };
             });
             document.querySelectorAll('#overdueTable th.sortable').forEach(th => {
-                th.addEventListener('click', () => {
+                th.onclick = () => {
                     const col = th.dataset.sort;
-                    if (overdueSort.col === col) overdueSort.dir = overdueSort.dir === 'asc' ? 'desc' : 'asc';
-                    else { overdueSort.col = col; overdueSort.dir = 'asc'; }
+                    overdueSort.dir = overdueSort.col === col ? (overdueSort.dir === 'asc' ? 'desc' : 'asc') : 'asc';
+                    overdueSort.col = col;
                     renderTables();
-                });
+                };
             });
         }
 
         function applyGlobalSearch() {
-            const term = (document.getElementById('globalSearch')?.value||'').toLowerCase();
-            // KPI cards
+            const term = (document.getElementById('globalSearch')?.value || '').toLowerCase();
             document.querySelectorAll('.kpi-card').forEach(card => {
                 card.style.display = term ? (card.innerText.toLowerCase().includes(term) ? '' : 'none') : '';
             });
-            // Table rows
             document.querySelectorAll('#blockedTable tbody tr, #overdueTable tbody tr').forEach(row => {
                 row.style.display = term ? (row.innerText.toLowerCase().includes(term) ? '' : 'none') : '';
             });
         }
 
+        // ===================== CHARTS =====================
         function initCharts() {
-            const lCtx = document.getElementById('lineChart').getContext('2d');
-            chartLine = new Chart(lCtx, {
+            const lineCtx = document.getElementById('lineChart')?.getContext('2d');
+            const donutCtx = document.getElementById('donutChart')?.getContext('2d');
+            if (!lineCtx || !donutCtx) return;
+
+            chartLine = new Chart(lineCtx, {
                 type: 'line',
-                data: { labels: [], datasets: [{ label: 'יציאות', data: [], borderColor: '#60A5FA', backgroundColor: 'rgba(96,165,250,0.1)', fill: true }] },
-                options: { responsive: true, maintainAspectRatio: true }
+                data: {
+                    labels: ['יום א', 'יום ב', 'יום ג', 'יום ד', 'יום ה', 'יום ו', 'שבת'],
+                    datasets: [{
+                        label: 'יציאות',
+                        data: [0, 0, 0, 0, 0, 0, 0],
+                        borderColor: '#60A5FA',
+                        backgroundColor: 'rgba(96,165,250,0.1)',
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { grid: { color: getComputedStyle(document.body).getPropertyValue('--grid-color') } },
+                        x: { grid: { color: getComputedStyle(document.body).getPropertyValue('--grid-color') } }
+                    }
+                }
             });
-            const dCtx = document.getElementById('donutChart').getContext('2d');
-            chartDonut = new Chart(dCtx, {
+
+            chartDonut = new Chart(donutCtx, {
                 type: 'doughnut',
-                data: { labels: ['בכספת','בחוץ','בטיפול'], datasets: [{ data: [0,0,0], backgroundColor: ['#3B82F6','#F59E0B','#EF4444'] }] },
-                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom' } } }
+                data: {
+                    labels: ['בכספת', 'בחוץ', 'בטיפול'],
+                    datasets: [{
+                        data: [1, 0, 0],
+                        backgroundColor: ['#3B82F6', '#F59E0B', '#EF4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { font: { size: 10 } } }
+                    }
+                },
+                plugins: [{
+                    id: 'centerText',
+                    afterDraw(chart) {
+                        const { ctx, chartArea: { top, bottom, left, right } } = chart;
+                        ctx.save();
+                        ctx.font = 'bold 18px "Segoe UI"';
+                        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary');
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.fillText(realData.totalWeapons || 0, (left + right) / 2, (top + bottom) / 2);
+                        ctx.restore();
+                    }
+                }]
             });
+
             chartsInitialized = true;
         }
 
         function updateCharts() {
             if (!chartsInitialized) return;
-            // עדכון גרף קו – חישוב יומי
-            const days = ['יום א','יום ב','יום ג','יום ד','יום ה','יום ו','שבת'];
-            const today = new Date();
-            const daily = {};
-            days.forEach(d => daily[d] = 0);
-            // נשתמש בנתוני checkouts (אם יש) – מימוש בסיסי
-            // (להפקת נתונים אמיתיים יש להוסיף לוגיקה מתאימה)
-            chartLine.data.labels = days;
-            chartLine.data.datasets[0].data = [30,45,38,52,70,85]; // דאטה זמני
-            chartLine.update();
-
-            chartDonut.data.datasets[0].data = [realData.weaponsInSafe, realData.weaponsOut, realData.overdueWeapons];
+            chartDonut.data.datasets[0].data = [
+                realData.weaponsInSafe,
+                realData.weaponsOut,
+                realData.overdueWeapons
+            ];
             chartDonut.update();
+            // Line chart – use dummy data for now
         }
 
         function setTheme(t) {
             document.body.classList.toggle('dark', t === 'dark');
             localStorage.setItem(LS_PREFIX + 'theme', t);
-            document.getElementById('themeToggleSide').innerHTML = t === 'dark' ? '<i class="fas fa-moon"></i><span>מצב כהה</span>' : '<i class="fas fa-sun"></i><span>מצב בהיר</span>';
+            document.getElementById('themeToggleSide').innerHTML = t === 'dark'
+                ? '<i class="fas fa-moon"></i><span>מצב כהה</span>'
+                : '<i class="fas fa-sun"></i><span>מצב בהיר</span>';
         }
+
         function toggleTheme() { setTheme(isDark() ? 'light' : 'dark'); }
 
         async function refreshData() {
             document.getElementById('skeletonLoader').classList.remove('hidden');
             document.getElementById('dashboardContent').classList.add('hidden');
-            await loadDashboardData();
-            renderKPICards(); renderAlerts(); renderTables(); updateCharts();
+            const success = await loadDashboardData();
+            if (success) {
+                updateKpiValues();
+                renderAlerts();
+                renderTables();
+                updateCharts();
+            }
             document.getElementById('skeletonLoader').classList.add('hidden');
             document.getElementById('dashboardContent').classList.remove('hidden');
         }
 
         function exportCSV() {
-            let csv = 'טבלת עובדים חסומים\nשם,ת.ז.,רמה,נשק\n';
-            realData.blockedList.forEach(e => csv += `${e.name},${e.id},${e.level},${e.weapons||''}\n`);
-            csv += '\nטבלת נשקים באיחור\nסיריאלי,מאבטח,תאריך מסירה,תאריך החזרה\n';
+            let csv = 'עובדים חסומים\nשם,ת.ז.,רמה\n';
+            realData.blockedList.forEach(e => csv += `${e.name},${e.id},${e.level}\n`);
+            csv += '\nנשקים באיחור\nסיריאלי,מאבטח,תאריך מסירה,תאריך החזרה\n';
             realData.overdueList.forEach(w => csv += `${w.serial},${w.employee},${w.checkout_date},${w.checkin_date}\n`);
-            const blob = new Blob(['\uFEFF' + csv], {type:'text/csv'});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'dashboard.csv'; a.click();
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'dashboard.csv';
+            a.click();
         }
 
+        // ===================== INITIALIZATION =====================
         document.addEventListener('DOMContentLoaded', async () => {
             setTheme(theme);
-            renderKPICards(); renderAlerts(); renderTables(); initCharts();
+            renderKPICards();
+            renderAlerts();
+            initCharts();
             await refreshData();
+
             document.getElementById('themeToggleSide').addEventListener('click', toggleTheme);
             document.getElementById('refreshBtn').addEventListener('click', refreshData);
             document.getElementById('exportBtn').addEventListener('click', exportCSV);
             document.getElementById('globalSearch').addEventListener('input', applyGlobalSearch);
-            // SPA – ניווט מהיר
-            document.querySelectorAll('.menu-item[data-page]').forEach(item => {
-                item.addEventListener('click', async (e) => {
-                    e.preventDefault();
-                    const page = item.dataset.page;
-                    if (page === 'dashboard') return;
-                    // טעינת דף חיצוני
-                    const content = await fetch(page + '.html').then(r => r.text());
-                    document.querySelector('.content-area').innerHTML = new DOMParser().parseFromString(content, 'text/html').querySelector('.content-area').innerHTML;
-                    // שמירת סטטוס היסטוריה
-                    history.pushState({page}, '', page + '.html');
-                });
-            });
+
             wsInterval = setInterval(refreshData, 30000);
         });
     </script>
