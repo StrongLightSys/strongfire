@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StrongFire – לוח בקרה</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --bg-body: #F8FAFC; --text-primary: #0F172A;
+            --bg-card: rgba(255,255,255,0.85); --card-shadow: 0 4px 16px rgba(0,0,0,0.04);
+            --border-color: #E2E8F0; --border-card: rgba(226,232,240,0.6);
+            --bg-sidebar: #FFFFFF; --text-sidebar: #475569; --bg-sidebar-hover: #F1F5F9;
+            --bg-topbar-btn: #E2E8F0; --text-topbar-btn: #0F172A;
+            --text-alerts: #DC2626; --bg-alerts: #FEF2F2; --border-alerts: #FECACA;
+            --table-header-bg: #F1F5F9; --table-header-text: #1E293B; --table-row-hover: #F1F5F9;
+            --chart-card-bg: rgba(255,255,255,0.85); --chart-card-border: rgba(226,232,240,0.6);
+            --grid-color: #E2E8F0; --ticks-color: #475569;
+            --sidebar-logo-color: #0F172A; --sidebar-border: #E2E8F0;
+        }
+        body.dark {
+            --bg-body: #0F172A; --text-primary: #F1F5F9;
+            --bg-card: rgba(30,41,59,0.8); --card-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            --border-color: #334155; --border-card: rgba(51,65,85,0.5);
+            --bg-sidebar: #0F172A; --text-sidebar: #CBD5E1; --bg-sidebar-hover: rgba(51,65,85,0.45);
+            --bg-topbar-btn: #334155; --text-topbar-btn: #F1F5F9;
+            --text-alerts: #FCA5A5; --bg-alerts: #2A0F0F; --border-alerts: #7F1D1D;
+            --table-header-bg: #1E293B; --table-header-text: #CBD5E1; --table-row-hover: #334155;
+            --chart-card-bg: rgba(30,41,59,0.8); --chart-card-border: rgba(51,65,85,0.5);
+            --grid-color: #334155; --ticks-color: #CBD5E1;
+            --sidebar-logo-color: #F1F5F9; --sidebar-border: #1E293B;
+        }
+        * { box-sizing: border-box; margin:0; padding:0; }
+        html,body { overflow-x: hidden; font-family: 'Segoe UI','Inter',system-ui,sans-serif; background: var(--bg-body); color: var(--text-primary); transition: background 0.3s, color 0.2s; }
+        .sidebar { transition: transform 0.3s; position: fixed; right:0; top:0; bottom:0; width:220px; z-index:30; background: var(--bg-sidebar); border-left:1px solid var(--sidebar-border); display:flex; flex-direction:column; }
+        .sidebar.collapsed { transform: translateX(100%); }
+        .sidebar-logo { display:flex; align-items:center; gap:0.75rem; padding:1.5rem 1.5rem 2.25rem; }
+        .sidebar-logo i { font-size:1.8rem; color:#3B82F6; background:rgba(59,130,246,0.1); padding:0.6rem; border-radius:0.75rem; }
+        .sidebar-logo span { font-size:1.3rem; font-weight:700; color:var(--sidebar-logo-color); }
+        .sidebar-nav { flex:1; padding:0.5rem 0.75rem; display:flex; flex-direction:column; gap:0.35rem; }
+        .menu-item { transition: all 0.2s; display:flex; align-items:center; gap:0.75rem; padding:0.7rem 1rem; border-radius:0.5rem; color:var(--text-sidebar); cursor:pointer; font-size:0.95rem; text-decoration:none; }
+        .menu-item i { width:1.25rem; text-align:center; }
+        .menu-item:hover { background:var(--bg-sidebar-hover); color:var(--text-primary); }
+        .menu-item.active { background:rgba(59,130,246,0.12); color:#3B82F6; font-weight:600; }
+        .menu-item.active::before { content:''; position:absolute; right:0; top:50%; transform:translateY(-50%); width:4px; height:24px; background:#3B82F6; border-radius:0 4px 4px 0; }
+        .sidebar-footer { padding:1rem 1rem 1.5rem; border-top:1px solid var(--sidebar-border); margin-top:auto; }
+        .theme-toggle-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:0.5rem; padding:0.65rem 1rem; border-radius:0.5rem; background:var(--bg-topbar-btn); color:var(--text-topbar-btn); border:none; cursor:pointer; font-size:0.9rem; transition:all 0.2s; }
+        .topbar-btn { transition:all 0.2s; background:var(--bg-topbar-btn); color:var(--text-topbar-btn); border-radius:9999px; padding:0.35rem 0.75rem; display:inline-flex; align-items:center; gap:0.25rem; border:none; cursor:pointer; font-size:0.85rem; }
+        .content-area { transition:margin-right 0.3s; margin-right:220px; padding:24px; height:100vh; overflow-y:auto; }
+        .sidebar.collapsed + .content-area { margin-right:0; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .kpi-card { transition: all 0.3s; min-height: 120px; display: flex; flex-direction: column; justify-content: center; border-radius: 18px; border: 1px solid var(--border-card); padding: 1.15rem; background: var(--bg-card); backdrop-filter: blur(10px); color: var(--text-primary); box-shadow: var(--card-shadow); }
+        .kpi-card.positive { border-top: 3px solid #10B981; }
+        .kpi-card.warning { border-top: 3px solid #EF4444; }
+        .kpi-card.info { border-top: 3px solid #3B82F6; }
+        .kpi-card.neutral { border-top: 3px solid #8B5CF6; }
+        .kpi-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; font-size: 1.05rem; margin-bottom: 0.75rem; }
+        .kpi-icon.blue { background: rgba(59,130,246,0.15); color: #3B82F6; }
+        .kpi-icon.green { background: rgba(16,185,129,0.15); color: #10B981; }
+        .kpi-icon.red { background: rgba(239,68,68,0.15); color: #EF4444; }
+        .kpi-icon.purple { background: rgba(139,92,246,0.15); color: #8B5CF6; }
+        .kpi-icon.amber { background: rgba(245,158,11,0.15); color: #F59E0B; }
+        .progress-bar { width: 100%; height: 6px; background: var(--border-color); border-radius: 9999px; margin-top: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 9999px; transition: width 0.6s; background: linear-gradient(90deg, #2563EB, #3B82F6); }
+        .chart-card, .table-card { background: var(--chart-card-bg); border: 1px solid var(--chart-card-border); border-radius: 1rem; padding: 1rem; box-shadow: var(--card-shadow); backdrop-filter: blur(10px); }
+        .alerts-card { border-radius: 1rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; background: var(--bg-alerts); border: 1px solid var(--border-alerts); color: var(--text-alerts); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.75rem; text-align: right; font-size: 0.9rem; }
+        th { background: var(--table-header-bg); color: var(--table-header-text); border-bottom: 1px solid var(--border-color); font-weight: 600; }
+        tbody tr:hover { background: var(--table-row-hover); }
+        @media (max-width:1024px) { .content-area { margin-right:0; padding:16px; } .sidebar { transform:translateX(100%); } .sidebar.collapsed { transform:translateX(0); } }
+    </style>
+</head>
+<body class="dark">
+    <aside class="sidebar">
+        <div class="sidebar-logo"><i class="fas fa-shield-haltered"></i><span>StrongFire</span></div>
+        <nav class="sidebar-nav">
+            <a href="dashboard.html" class="menu-item active"><i class="fas fa-tachometer-alt"></i> לוח בקרה</a>
+            <a href="employees.html" class="menu-item"><i class="fas fa-users"></i> מאבטחים</a>
+            <a href="weapons.html" class="menu-item"><i class="fas fa-gun"></i> נשקים</a>
+            <a href="#" class="menu-item"><i class="fas fa-arrow-right"></i> מסירה</a>
+            <a href="#" class="menu-item"><i class="fas fa-arrow-left"></i> החזרה</a>
+            <a href="#" class="menu-item"><i class="fas fa-bell"></i> התראות</a>
+            <a href="#" class="menu-item"><i class="fas fa-chart-line"></i> דוחות</a>
+            <a href="#" class="menu-item"><i class="fas fa-cog"></i> הגדרות</a>
+        </nav>
+        <div class="sidebar-footer">
+            <button id="themeToggleSide" class="theme-toggle-btn"><i class="fas fa-sun"></i> מצב בהיר</button>
+        </div>
+    </aside>
+
+    <div class="content-area">
+        <h1 class="text-2xl font-bold mb-5">לוח בקרה</h1>
+        <button id="refreshBtn" class="topbar-btn mb-4"><i class="fas fa-sync-alt"></i> רענן</button>
+        <div class="kpi-grid" id="kpiGrid"></div>
+        <div class="charts-row flex gap-6 mb-6">
+            <div class="chart-card flex-1"><canvas id="lineChart" height="180"></canvas></div>
+            <div class="chart-card" style="width:33%"><canvas id="donutChart" height="180"></canvas></div>
+        </div>
+        <div class="alerts-card" id="alertsCard">אין התראות</div>
+        <div class="grid grid-cols-2 gap-6">
+            <div class="table-card"><h3>עובדים חסומים</h3><table id="blockedTable"></table></div>
+            <div class="table-card"><h3>נשקים באיחור</h3><table id="overdueTable"></table></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+        const LS = 'strongfire_';
+
+        async function getData(sheet) {
+            const cached = sessionStorage.getItem(LS + sheet);
+            if (cached) return JSON.parse(cached);
+            const res = await fetch(`${API_URL}?action=get&sheet=${sheet}`);
+            const data = await res.json();
+            sessionStorage.setItem(LS + sheet, JSON.stringify(data));
+            return data;
+        }
+
+        function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
+
+        async function loadDashboard() {
+            const [employees, weapons, checkouts, alerts] = await Promise.all([
+                getData('employees'), getData('weapons'), getData('checkouts'), getData('alerts')
+            ]);
+            const totalWeapons = weapons.length;
+            const weaponsOut = checkouts.filter(c=>c.status==='פעיל').length;
+            const overdue = checkouts.filter(c=>c.status==='פעיל' && new Date(c.checkout_date) < new Date(Date.now()-7*86400000)).length;
+            const totalEmp = employees.length;
+            const blocked = employees.filter(e=>e.status==='חסום').length;
+            const safe = totalWeapons - weaponsOut;
+            const activeEmp = totalEmp - blocked;
+
+            const kpiData = [
+                {title:'סה"כ נשקים', value:totalWeapons, icon:'fa-gun', color:'purple', border:'neutral'},
+                {title:'נשקים בכספת', value:safe, icon:'fa-shield-alt', color:'blue', border:'info', progress:true, pct:Math.round(safe/totalWeapons*100)},
+                {title:'נשקים בחוץ', value:weaponsOut, icon:'fa-arrow-right', color:'amber'},
+                {title:'נשקים באיחור', value:overdue, icon:'fa-clock', color:'red', border:'warning'},
+                {title:'סה"כ עובדים', value:totalEmp, icon:'fa-users', color:'purple', border:'neutral'},
+                {title:'עובדים כשירים', value:activeEmp, icon:'fa-check-circle', color:'green', border:'positive', progress:true, pct:Math.round(activeEmp/totalEmp*100)},
+                {title:'עובדים חסומים', value:blocked, icon:'fa-ban', color:'red', border:'warning'}
+            ];
+            document.getElementById('kpiGrid').innerHTML = kpiData.map(c => `
+                <div class="kpi-card ${c.border||''}">
+                    <div class="kpi-icon ${c.color}"><i class="fas ${c.icon}"></i></div>
+                    <div class="text-xs opacity-75">${c.title}</div>
+                    <div class="text-2xl font-bold">${c.value}</div>
+                    ${c.progress ? `<div class="progress-bar"><div class="progress-fill" style="width:${c.pct}%"></div></div>` : ''}
+                </div>
+            `).join('');
+
+            if (window.donut) window.donut.destroy();
+            const ctx = document.getElementById('donutChart').getContext('2d');
+            window.donut = new Chart(ctx, { type:'doughnut', data:{labels:['בכספת','בחוץ','בטיפול'], datasets:[{data:[safe, weaponsOut, overdue], backgroundColor:['#3B82F6','#F59E0B','#EF4444']}]} });
+
+            const highAlerts = alerts.filter(a=>a.severity==='גבוה' && a.status==='פתוח');
+            document.getElementById('alertsCard').innerHTML = highAlerts.length ? highAlerts.map(a=>`<p>${a.message}</p>`).join('') : 'אין התראות';
+            document.getElementById('blockedTable').innerHTML = `<tr><th>שם</th><th>ת.ז.</th><th>תפקיד</th></tr>${employees.filter(e=>e.status==='חסום').map(e=>`<tr><td>${e.name}</td><td>${e.national_id}</td><td>${e.level}</td></tr>`).join('')}`;
+            document.getElementById('overdueTable').innerHTML = `<tr><th>סיריאלי</th><th>מאבטח</th><th>תאריך</th></tr>${checkouts.filter(c=>c.status==='פעיל' && new Date(c.checkout_date) < new Date(Date.now()-7*86400000)).map(c=>`<tr><td>${c.weapon_serial}</td><td>${employees.find(e=>e.uid==c.employee_uid)?.name||'?'}</td><td>${formatDate(c.checkout_date)}</td></tr>`).join('')}`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const theme = localStorage.getItem(LS+'theme') || 'dark';
+            document.body.classList.toggle('dark', theme==='dark');
+            document.getElementById('themeToggleSide').innerHTML = theme==='dark' ? '<i class="fas fa-moon"></i> מצב כהה' : '<i class="fas fa-sun"></i> מצב בהיר';
+            document.getElementById('themeToggleSide').addEventListener('click', () => {
+                const isDark = document.body.classList.toggle('dark');
+                localStorage.setItem(LS+'theme', isDark ? 'dark' : 'light');
+                location.reload();
+            });
+            document.getElementById('refreshBtn').addEventListener('click', () => { sessionStorage.clear(); loadDashboard(); });
+            loadDashboard();
+        });
+    </script>
+</body>
+</html>
