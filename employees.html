@@ -50,7 +50,7 @@
         .content-area { transition:margin-right 0.3s; margin-right:220px; padding:24px; height:100vh; overflow-y:auto; }
         .sidebar.collapsed + .content-area { margin-right:0; }
         .table-card { background:var(--chart-card-bg); border:1px solid var(--chart-card-border); border-radius:1rem; padding:1rem; backdrop-filter:blur(10px); box-shadow:var(--card-shadow); }
-        .search-bar { display:flex; gap:1rem; margin-bottom:1.5rem; padding:0.5rem 1rem; background:var(--chart-card-bg); border:1px solid var(--chart-card-border); border-radius:1rem; backdrop-filter:blur(10px); flex-wrap:wrap; }
+        .search-bar { display:flex; gap:1rem; margin-bottom:1.5rem; padding:0.5rem 1rem; background:var(--chart-card-bg); border:1px solid var(--chart-card-border); border-radius:1rem; backdrop-filter:blur(10px); flex-wrap:wrap; align-items:center; }
         .search-bar input { flex:1; min-width:180px; border:none; background:transparent; padding:0.5rem; font-size:0.95rem; color:var(--text-primary); outline:none; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 0.65rem; text-align: right; font-size: 0.9rem; }
@@ -63,8 +63,9 @@
         @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100; }
         .modal.active { display:flex; }
-        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:550px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; max-height:80vh; overflow-y:auto; }
+        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:550px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; max-height:70vh; display:flex; flex-direction:column; }
         @keyframes slideUp { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
+        .modal-body { overflow-y:auto; flex:1; }
         .modal-close { position:absolute; top:10px; left:10px; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-sidebar); transition:color 0.2s; }
         .modal-close:hover { color:#EF4444; }
         .tabs { display:flex; gap:0.25rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); }
@@ -72,13 +73,13 @@
         .tab i { font-size:1rem; }
         .tab.active { color:#3B82F6; font-weight:600; background:rgba(59,130,246,0.05); }
         .tab.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:3px; background:#3B82F6; border-radius:3px 3px 0 0; }
-        .tab-content { display:none; padding:0.5rem 0; }
+        .tab-content { display:none; }
         .tab-content.active { display:block; }
         .form-group { margin-bottom:0.9rem; }
         .form-group label { display:block; margin-bottom:0.25rem; font-weight:500; font-size:0.85rem; }
         .form-group input, .form-group select { width:100%; padding:0.5rem; border:1px solid var(--border-color); border-radius:0.5rem; background:var(--bg-card); color:var(--text-primary); transition:border-color 0.2s; font-size:0.9rem; }
         .form-group input:focus, .form-group select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
-        .weapon-assign-list { max-height:200px; overflow-y:auto; margin-bottom:1rem; }
+        .weapon-assign-list { max-height:150px; overflow-y:auto; margin-bottom:1rem; }
         .weapon-item { display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:var(--bg-card); border:1px solid var(--border-color); border-radius:0.5rem; margin-bottom:0.4rem; }
         .btn-small { padding:0.25rem 0.6rem; font-size:0.75rem; border-radius:9999px; }
         .doc-list { list-style:none; padding:0; }
@@ -91,6 +92,7 @@
         .doc-valid { color:#10B981; }
         .doc-expired { color:#EF4444; }
         .toast { position:fixed; bottom:20px; left:20px; background:#10B981; color:white; padding:0.75rem 1.25rem; border-radius:0.5rem; z-index:200; animation:slideUp 0.3s ease; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+        .menu-toggle-btn { margin-right:0.5rem; }
         @media (max-width:1024px) { .content-area { padding:16px; margin-right:0; } .sidebar { transform:translateX(100%); } .sidebar.collapsed { transform:translateX(0); } .search-bar { flex-direction: column; align-items: stretch; } .tabs { overflow-x:auto; white-space:nowrap; } }
     </style>
 </head>
@@ -108,7 +110,10 @@
     </aside>
 
     <div class="content-area">
-        <h1 class="text-2xl font-bold mb-5">מאבטחים</h1>
+        <div class="flex items-center gap-3 mb-6">
+            <button id="menuToggle" class="menu-toggle-btn lg:hidden text-2xl topbar-btn w-10 h-10 rounded-full flex items-center justify-center" aria-label="פתח תפריט"><i class="fas fa-bars"></i></button>
+            <h1 class="text-2xl font-bold">מאבטחים</h1>
+        </div>
         <div class="search-bar">
             <input type="text" id="empSearch" placeholder="חיפוש…">
             <select id="empLevelFilter" class="topbar-btn">
@@ -120,13 +125,9 @@
             <button id="addBtn" class="topbar-btn"><i class="fas fa-plus"></i> הוסף</button>
             <button id="refreshBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
         </div>
-        <!-- Skeleton loader -->
         <div id="skeletonLoader" class="hidden">
             <div class="space-y-4">
-                <div class="skeleton" style="height:40px;"></div>
-                <div class="skeleton" style="height:40px;"></div>
-                <div class="skeleton" style="height:40px;"></div>
-                <div class="skeleton" style="height:40px;"></div>
+                <div class="skeleton" style="height:40px;"></div><div class="skeleton" style="height:40px;"></div><div class="skeleton" style="height:40px;"></div><div class="skeleton" style="height:40px;"></div>
             </div>
         </div>
         <div class="table-card" id="tableContainer">
@@ -148,33 +149,35 @@
                 <button class="tab" data-tab="compliance"><i class="fas fa-clipboard-check"></i> כשירויות</button>
                 <button class="tab" data-tab="documents"><i class="fas fa-folder-open"></i> אישורים</button>
             </div>
-            <div class="tab-content active" id="tab-personal">
-                <div class="flex flex-wrap gap-4">
-                    <div class="form-group flex-1 min-w-[45%]"><label>שם מלא</label><input type="text" id="inputName" required></div>
-                    <div class="form-group flex-1 min-w-[45%]"><label>תעודת זהות</label><input type="text" id="inputNationalId" required></div>
-                    <div class="form-group flex-1 min-w-[45%]"><label>תפקיד</label><select id="inputLevel"><option value="שומר">שומר</option><option value="מאבטח">מאבטח</option><option value="מנהל יחידה">מנהל יחידה</option></select></div>
-                    <div class="form-group flex-1 min-w-[45%]"><label>קורס</label><select id="inputCourse"><option value="בסיס">בסיס</option><option value="א'">א'</option><option value="ב'">ב'</option><option value="א' מתקדם">א' מתקדם</option></select></div>
-                    <div class="form-group flex-1 min-w-[45%]"><label>סטטוס</label><select id="inputStatus"><option value="פעיל">פעיל</option><option value="חסום">חסום</option></select></div>
+            <div class="modal-body">
+                <div class="tab-content active" id="tab-personal">
+                    <div class="flex flex-wrap gap-4">
+                        <div class="form-group flex-1 min-w-[45%]"><label>שם מלא</label><input type="text" id="inputName" required></div>
+                        <div class="form-group flex-1 min-w-[45%]"><label>תעודת זהות</label><input type="text" id="inputNationalId" required></div>
+                        <div class="form-group flex-1 min-w-[45%]"><label>תפקיד</label><select id="inputLevel"><option value="שומר">שומר</option><option value="מאבטח">מאבטח</option><option value="מנהל יחידה">מנהל יחידה</option></select></div>
+                        <div class="form-group flex-1 min-w-[45%]"><label>קורס</label><select id="inputCourse"><option value="בסיס">בסיס</option><option value="א'">א'</option><option value="ב'">ב'</option><option value="א' מתקדם">א' מתקדם</option></select></div>
+                        <div class="form-group flex-1 min-w-[45%]"><label>סטטוס</label><select id="inputStatus"><option value="פעיל">פעיל</option><option value="חסום">חסום</option></select></div>
+                    </div>
                 </div>
-            </div>
-            <div class="tab-content" id="tab-weapons">
-                <p class="text-sm opacity-70 mb-2">נשקים משויכים</p>
-                <div class="weapon-assign-list" id="assignedWeaponsList"></div>
-                <div class="form-group"><label>הוסף נשק</label><select id="weaponSelect" style="width:100%;"></select><button class="topbar-btn btn-small mt-2" id="addWeaponBtn"><i class="fas fa-plus"></i> שייך</button></div>
-            </div>
-            <div class="tab-content" id="tab-compliance">
-                <div class="flex flex-wrap gap-4">
-                    <div class="form-group flex-1 min-w-[45%]"><label>תוקף רישיון</label><input type="date" id="inputLicense"></div>
-                    <div class="form-group flex-1 min-w-[45%]"><label>תוקף בדיקת בריאות</label><input type="date" id="inputMedical"></div>
-                    <div class="form-group flex-1 min-w-[45%]"><label>תוקף הדרכה</label><input type="date" id="inputTraining"></div>
+                <div class="tab-content" id="tab-weapons">
+                    <p class="text-sm opacity-70 mb-2">נשקים משויכים</p>
+                    <div class="weapon-assign-list" id="assignedWeaponsList"></div>
+                    <div class="form-group"><label>הוסף נשק</label><select id="weaponSelect" style="width:100%;"></select><button class="topbar-btn btn-small mt-2" id="addWeaponBtn"><i class="fas fa-plus"></i> שייך</button></div>
                 </div>
-            </div>
-            <div class="tab-content" id="tab-documents">
-                <p class="text-sm opacity-70 mb-3">מסמכים משויכים</p>
-                <ul class="doc-list" id="docList">
-                    <li class="doc-item"><div class="doc-info"><i class="fas fa-id-card"></i><div><div class="doc-name">רישיון נשק</div><div class="doc-date">בתוקף עד 31/12/2025</div></div></div><span class="doc-status doc-valid"><i class="fas fa-check-circle"></i> בתוקף</span></li>
-                    <li class="doc-item"><div class="doc-info"><i class="fas fa-stethoscope"></i><div><div class="doc-name">בדיקת בריאות</div><div class="doc-date">פג תוקף 01/10/2024</div></div></div><span class="doc-status doc-expired"><i class="fas fa-times-circle"></i> פג תוקף</span></li>
-                </ul>
+                <div class="tab-content" id="tab-compliance">
+                    <div class="flex flex-wrap gap-4">
+                        <div class="form-group flex-1 min-w-[45%]"><label>תוקף רישיון</label><input type="date" id="inputLicense"></div>
+                        <div class="form-group flex-1 min-w-[45%]"><label>תוקף בדיקת בריאות</label><input type="date" id="inputMedical"></div>
+                        <div class="form-group flex-1 min-w-[45%]"><label>תוקף הדרכה</label><input type="date" id="inputTraining"></div>
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-documents">
+                    <p class="text-sm opacity-70 mb-3">מסמכים משויכים</p>
+                    <ul class="doc-list" id="docList">
+                        <li class="doc-item"><div class="doc-info"><i class="fas fa-id-card"></i><div><div class="doc-name">רישיון נשק</div><div class="doc-date">בתוקף עד 31/12/2025</div></div></div><span class="doc-status doc-valid"><i class="fas fa-check-circle"></i> בתוקף</span></li>
+                        <li class="doc-item"><div class="doc-info"><i class="fas fa-stethoscope"></i><div><div class="doc-name">בדיקת בריאות</div><div class="doc-date">פג תוקף 01/10/2024</div></div></div><span class="doc-status doc-expired"><i class="fas fa-times-circle"></i> פג תוקף</span></li>
+                    </ul>
+                </div>
             </div>
             <div class="flex gap-2 mt-4 justify-end">
                 <button class="topbar-btn px-3 py-1" style="background:#3B82F6; color:white;" id="saveBtn">שמור</button>
@@ -201,13 +204,10 @@
         function postForm(action, data) {
             const form = document.createElement('form');
             form.method = 'POST'; form.action = API_URL; form.target = 'hiddenFrame';
-            const actionInput = document.createElement('input'); actionInput.name = 'action'; actionInput.value = action;
-            form.appendChild(actionInput);
-            const sheetInput = document.createElement('input'); sheetInput.name = 'sheet'; sheetInput.value = data.sheet || 'employees';
-            form.appendChild(sheetInput);
+            form.appendChild(Object.assign(document.createElement('input'), {name:'action', value:action}));
+            form.appendChild(Object.assign(document.createElement('input'), {name:'sheet', value:data.sheet || 'employees'}));
             for (let key in data) {
-                const input = document.createElement('input'); input.name = key; input.value = data[key];
-                form.appendChild(input);
+                form.appendChild(Object.assign(document.createElement('input'), {name:key, value:data[key]}));
             }
             document.body.appendChild(form);
             form.submit();
@@ -269,7 +269,7 @@
             const term = (document.getElementById('empSearch')?.value || '').toLowerCase();
             const level = document.getElementById('empLevelFilter')?.value || '';
             const filtered = allEmployees.filter(e => {
-                const matchSearch = !term || (e.name||'').toLowerCase().includes(term) || (e.national_id||'').includes(term) || (e.level||'').toLowerCase().includes(term);
+                const matchSearch = !term || (e.name||'').toLowerCase().includes(term) || (e.national_id||'').includes(term) || (e.level||'').toLowerCase().includes(term) || (e.course||'').toLowerCase().includes(term);
                 return matchSearch && (!level || e.level === level);
             });
             renderTable(filtered);
@@ -278,7 +278,6 @@
         function renderTable(employees) {
             const tbody = document.querySelector('#employeesTable tbody');
             tbody.innerHTML = employees.map(e => {
-                const weapons = (e.weapons||'').split(',').filter(w=>w.trim());
                 return `<tr>
                     <td>${e.uid}</td><td>${e.name}</td><td>${e.national_id}</td><td>${e.level}</td><td>${e.course||''}</td>
                     <td><span class="status-badge ${e.status==='פעיל'?'status-active':'status-blocked'}">${e.status}</span></td>
@@ -328,6 +327,7 @@
         };
 
         function closeModal() { document.getElementById('employeeModal').classList.remove('active'); }
+
         function switchTab(tabName) {
             document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tabName));
@@ -387,14 +387,15 @@
                 data.uid = maxUid + 1;
                 postForm('add', { ...data, sheet: 'employees' });
             }
-            setTimeout(() => { loadEmployees(true); closeModal(); }, 500);
+            setTimeout(() => { loadEmployees(true); closeModal(); }, 700);
             showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
         }
 
-        window.deleteEmployee = function(nationalId) {
-            if (confirm('למחוק?')) {
+        window.deleteEmployee = async function(nationalId) {
+            if (confirm('האם למחוק את המאבטח?')) {
                 postForm('delete', { sheet: 'employees', national_id: nationalId });
-                setTimeout(() => loadEmployees(true), 500);
+                setTimeout(() => loadEmployees(true), 700);
+                showToast('המאבטח נמחק');
             }
         };
 
@@ -403,6 +404,7 @@
         document.getElementById('empSearch').addEventListener('input', applyFilters);
         document.getElementById('empLevelFilter').addEventListener('change', applyFilters);
         document.getElementById('refreshBtn').addEventListener('click', () => loadEmployees(true));
+        document.getElementById('menuToggle').addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('collapsed'));
         document.getElementById('themeToggleSide').addEventListener('click', () => {
             const isDark = document.body.classList.toggle('dark');
             localStorage.setItem('strongfire_theme', isDark ? 'dark' : 'light');
