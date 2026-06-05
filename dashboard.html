@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>StrongFire – לוח בקרה</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -171,37 +171,69 @@
         function formatDate(iso) { if (!iso) return '-'; let d = new Date(iso); if (isNaN(d.getTime())) return iso; return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; }
 
         async function loadDashboardData(forceRefresh = false) {
-            const CACHE_KEY = 'dashboard_cache', CACHE_TIME = 60000;
+            const CACHE_KEY = 'dashboard_cache', CACHE_TIME = 300000; // 5 דקות
+
+            // הצגת שלד טעינה
+            document.getElementById('skeletonLoader').classList.remove('hidden');
+            document.getElementById('dashboardContent').classList.add('hidden');
+
+            // הצגה מיידית מהמטמון
             if (!forceRefresh) {
                 const cached = sessionStorage.getItem(CACHE_KEY);
                 if (cached) {
                     const { data, timestamp } = JSON.parse(cached);
                     if (Date.now() - timestamp < CACHE_TIME) {
                         realData = data;
+                        renderAll();
+                        document.getElementById('skeletonLoader').classList.add('hidden');
+                        document.getElementById('dashboardContent').classList.remove('hidden');
+                        // רענון שקט ברקע
+                        refreshFromServer(CACHE_KEY);
                         return;
                     }
                 }
             }
-            const allData = await jsonp(API_URL + '?action=dashboard');
-            const employees = allData.employees || [];
-            const weapons = allData.weapons || [];
-            const checkouts = allData.checkouts || [];
-            const alerts = allData.alerts || [];
 
-            const totalWeapons = weapons.length;
-            const weaponsOut = checkouts.filter(c => c.status === 'פעיל').length;
-            const now = new Date();
-            const overdueWeapons = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(now - 7*86400000)).length;
-            const totalEmployees = employees.length;
-            const blockedEmployees = employees.filter(e => e.status === 'חסום').length;
-            const weaponsInSafe = totalWeapons - weaponsOut;
-            const activeEmployees = totalEmployees - blockedEmployees;
-            const highAlerts = alerts.filter(a => a.severity === 'גבוה' && a.status === 'פתוח').map(a => `${a.date} - ${a.message}`);
-            const blockedList = employees.filter(e => e.status === 'חסום').map(e => ({ name: e.name, id: e.national_id, level: e.level }));
-            const overdueList = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(now - 7*86400000)).map(c => ({ serial: c.weapon_serial, employee: employees.find(e => e.uid == c.employee_uid)?.name || '?', date: formatDate(c.checkout_date) }));
+            await refreshFromServer(CACHE_KEY);
+        }
 
-            realData = { totalWeapons, weaponsOut, overdueWeapons, totalEmployees, blockedEmployees, weaponsInSafe, activeEmployees, highAlerts, blockedList, overdueList };
-            sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: realData, timestamp: Date.now() }));
+        async function refreshFromServer(CACHE_KEY) {
+            try {
+                const allData = await jsonp(API_URL + '?action=dashboard');
+                const employees = allData.employees || [];
+                const weapons = allData.weapons || [];
+                const checkouts = allData.checkouts || [];
+                const alerts = allData.alerts || [];
+
+                const totalWeapons = weapons.length;
+                const weaponsOut = checkouts.filter(c => c.status === 'פעיל').length;
+                const now = new Date();
+                const overdueWeapons = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(now - 7*86400000)).length;
+                const totalEmployees = employees.length;
+                const blockedEmployees = employees.filter(e => e.status === 'חסום').length;
+                const weaponsInSafe = totalWeapons - weaponsOut;
+                const activeEmployees = totalEmployees - blockedEmployees;
+                const highAlerts = alerts.filter(a => a.severity === 'גבוה' && a.status === 'פתוח').map(a => `${a.date} - ${a.message}`);
+                const blockedList = employees.filter(e => e.status === 'חסום').map(e => ({ name: e.name, id: e.national_id, level: e.level }));
+                const overdueList = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(now - 7*86400000)).map(c => ({ serial: c.weapon_serial, employee: employees.find(e => e.uid == c.employee_uid)?.name || '?', date: formatDate(c.checkout_date) }));
+
+                realData = { totalWeapons, weaponsOut, overdueWeapons, totalEmployees, blockedEmployees, weaponsInSafe, activeEmployees, highAlerts, blockedList, overdueList };
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: realData, timestamp: Date.now() }));
+                renderAll();
+            } catch (e) {
+                console.error('רענון נכשל', e);
+            } finally {
+                document.getElementById('skeletonLoader').classList.add('hidden');
+                document.getElementById('dashboardContent').classList.remove('hidden');
+            }
+        }
+
+        function renderAll() {
+            renderKPICards();
+            updateKpiValues();
+            renderAlerts();
+            renderTables();
+            updateCharts();
         }
 
         const kpiCardsMeta = [
@@ -225,8 +257,8 @@
                     <div class="text-2xl font-bold mt-0.5 kpi-value" style="font-size:1.75rem;">--</div>${progressHtml}</div>`;
             });
             container.innerHTML = html;
-            updateKpiValues();
         }
+
         function updateKpiValues() {
             document.querySelectorAll('.kpi-card').forEach(card => {
                 let id = card.dataset.id, valEl = card.querySelector('.kpi-value');
@@ -246,7 +278,6 @@
             c.innerHTML = realData.highAlerts.length ? realData.highAlerts.map(a => `<li>${a}</li>`).join('') : '<li>אין התראות גבוהות</li>';
         }
 
-        // טבלאות – מיון
         let blockedSort = { col: 'name', dir: 'asc' };
         let overdueSort = { col: 'serial', dir: 'asc' };
 
@@ -328,11 +359,13 @@
             chartDonut = new Chart(dCtx, { type: 'doughnut', data: { labels: ['בכספת','בחוץ','בטיפול'], datasets: [{ data: [realData.weaponsInSafe, realData.weaponsOut, realData.overdueWeapons], backgroundColor: ['#3B82F6','#F59E0B','#EF4444'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { position: 'bottom', labels: { font: { size: 10 } } } } }, plugins: [ctp] });
             chartsInitialized = true;
         }
+
         function updateCharts() {
             if (!chartsInitialized) return;
             chartDonut.data.datasets[0].data = [realData.weaponsInSafe, realData.weaponsOut, realData.overdueWeapons];
             chartDonut.update();
         }
+
         function updateChartsTheme() {
             if (!chartsInitialized) return;
             let gc = getComputedStyle(document.body).getPropertyValue('--grid-color'), tc = getComputedStyle(document.body).getPropertyValue('--ticks-color');
@@ -350,12 +383,7 @@
         function toggleTheme() { setTheme(isDark() ? 'light' : 'dark'); }
 
         async function refreshData() {
-            document.getElementById('skeletonLoader').classList.remove('hidden');
-            document.getElementById('dashboardContent').classList.add('hidden');
             await loadDashboardData(true);
-            renderKPICards(); updateKpiValues(); renderAlerts(); renderTables(); updateCharts();
-            document.getElementById('skeletonLoader').classList.add('hidden');
-            document.getElementById('dashboardContent').classList.remove('hidden');
         }
 
         function exportCSV() {
@@ -370,7 +398,7 @@
         document.addEventListener('DOMContentLoaded', async () => {
             setTheme(theme);
             renderKPICards(); renderAlerts(); initCharts();
-            await refreshData();
+            await loadDashboardData();
             document.getElementById('themeToggleSide').addEventListener('click', toggleTheme);
             document.getElementById('menuToggle').addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('collapsed'));
             document.getElementById('refreshBtn').addEventListener('click', refreshData);
