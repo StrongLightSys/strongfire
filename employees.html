@@ -63,7 +63,7 @@
         @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100; }
         .modal.active { display:flex; }
-        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:550px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; max-height:70vh; display:flex; flex-direction:column; }
+        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:550px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; max-height:65vh; display:flex; flex-direction:column; }
         @keyframes slideUp { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
         .modal-body { overflow-y:auto; flex:1; }
         .modal-close { position:absolute; top:10px; left:10px; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-sidebar); transition:color 0.2s; }
@@ -225,7 +225,7 @@
         let allEmployees = [], allWeapons = [];
         let currentEditId = null, assignedWeapons = [];
 
-        function formatDate(iso) { if (!iso) return ''; let d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
+        function formatDate(iso) { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
 
         async function loadEmployees(forceRefresh = false) {
             const CACHE_KEY = 'employees_cache', CACHE_TIME = 300000;
@@ -391,11 +391,12 @@
             showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
         }
 
-        window.deleteEmployee = async function(nationalId) {
-            if (confirm('האם למחוק את המאבטח?')) {
+        window.deleteEmployee = function(nationalId) {
+            if (confirm('האם למחוק?')) {
                 postForm('delete', { sheet: 'employees', national_id: nationalId });
-                setTimeout(() => loadEmployees(true), 700);
                 showToast('המאבטח נמחק');
+                // רענון אוטומטי אחרי 1.5 שניות
+                setTimeout(() => loadEmployees(true), 1500);
             }
         };
 
