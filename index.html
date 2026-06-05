@@ -113,6 +113,7 @@
     </aside>
 
     <div class="content-area" id="mainContent"></div>
+    <iframe name="hiddenFrame" style="display:none;"></iframe>
 
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
@@ -128,21 +129,17 @@
             });
         }
 
-        function postAjax(action, data) {
-            return new Promise((resolve) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', API_URL);
-                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                const params = new URLSearchParams();
-                params.append('action', action);
-                params.append('sheet', data.sheet || 'employees');
-                for (let key in data) { params.append(key, data[key]); }
-                xhr.onload = () => {
-                    try { resolve(JSON.parse(xhr.responseText).success); } catch(e) { resolve(false); }
-                };
-                xhr.onerror = () => resolve(false);
-                xhr.send(params);
-            });
+        function postForm(action, data) {
+            const form = document.createElement('form');
+            form.method = 'POST'; form.action = API_URL; form.target = 'hiddenFrame';
+            form.appendChild(Object.assign(document.createElement('input'), {name:'action', value:action}));
+            form.appendChild(Object.assign(document.createElement('input'), {name:'sheet', value:data.sheet || 'employees'}));
+            for (let key in data) {
+                form.appendChild(Object.assign(document.createElement('input'), {name:key, value:data[key]}));
+            }
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 200);
         }
 
         function showToast(msg) {
@@ -415,37 +412,29 @@
                 training_expiry: document.getElementById('inputTraining').value,
                 weapons: assignedWeapons.join(', ')
             };
-            let success = false;
             if (currentEditId) {
                 data.national_id = currentEditId;
-                success = await postAjax('update', { ...data, sheet: 'employees', national_id: currentEditId });
+                postForm('update', { ...data, sheet: 'employees', national_id: currentEditId });
             } else {
                 if (empData.employees.some(e => e.national_id == nationalId)) return alert('תעודת זהות קיימת');
                 const maxUid = Math.max(...empData.employees.map(e => e.uid||0), 0);
                 data.uid = maxUid + 1;
-                success = await postAjax('add', { ...data, sheet: 'employees' });
+                postForm('add', { ...data, sheet: 'employees' });
             }
-            if (success) {
-                clearAllCaches();
-                loadEmployees(true);
-                setTimeout(() => loadEmployees(true), 1500);
-                document.getElementById('employeeModal').classList.remove('active');
-                showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
-            } else {
-                alert('השמירה נכשלה. אנא בדוק את החיבור.');
-            }
+            clearAllCaches();
+            document.getElementById('employeeModal').classList.remove('active');
+            showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
+            // רענון מיידי + רענון נוסף כעבור 2 שניות
+            loadEmployees(true);
+            setTimeout(() => loadEmployees(true), 2000);
         }
-        window.deleteEmployee = async function(nationalId) {
+        window.deleteEmployee = function(nationalId) {
             if (!confirm('למחוק?')) return;
-            const success = await postAjax('delete', { sheet: 'employees', national_id: nationalId });
-            if (success) {
-                clearAllCaches();
-                loadEmployees(true);
-                setTimeout(() => loadEmployees(true), 1500);
-                showToast('המאבטח נמחק');
-            } else {
-                alert('המחיקה נכשלה. אנא בדוק את החיבור.');
-            }
+            postForm('delete', { sheet: 'employees', national_id: nationalId });
+            clearAllCaches();
+            showToast('המאבטח נמחק');
+            loadEmployees(true);
+            setTimeout(() => loadEmployees(true), 2000);
         };
 
         // ===================== WEAPONS =====================
@@ -550,34 +539,25 @@
                 status: document.getElementById('inputWepStatus').value,
                 location: document.getElementById('inputLocation').value
             };
-            let success = false;
             if (currentEditSerial) {
                 data.serial = currentEditSerial;
-                success = await postAjax('update', { ...data, sheet: 'weapons', serial: currentEditSerial });
+                postForm('update', { ...data, sheet: 'weapons', serial: currentEditSerial });
             } else {
-                success = await postAjax('add', { ...data, sheet: 'weapons' });
+                postForm('add', { ...data, sheet: 'weapons' });
             }
-            if (success) {
-                clearAllCaches();
-                loadWeapons(true);
-                setTimeout(() => loadWeapons(true), 1500);
-                document.getElementById('weaponModal').classList.remove('active');
-                showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
-            } else {
-                alert('השמירה נכשלה. אנא בדוק את החיבור.');
-            }
+            clearAllCaches();
+            document.getElementById('weaponModal').classList.remove('active');
+            showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
+            loadWeapons(true);
+            setTimeout(() => loadWeapons(true), 2000);
         }
-        window.deleteWeapon = async function(serial) {
+        window.deleteWeapon = function(serial) {
             if (!confirm('למחוק?')) return;
-            const success = await postAjax('delete', { sheet: 'weapons', serial });
-            if (success) {
-                clearAllCaches();
-                loadWeapons(true);
-                setTimeout(() => loadWeapons(true), 1500);
-                showToast('הנשק נמחק');
-            } else {
-                alert('המחיקה נכשלה. אנא בדוק את החיבור.');
-            }
+            postForm('delete', { sheet: 'weapons', serial });
+            clearAllCaches();
+            showToast('הנשק נמחק');
+            loadWeapons(true);
+            setTimeout(() => loadWeapons(true), 2000);
         };
 
         // ===================== INIT =====================
