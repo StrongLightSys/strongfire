@@ -333,6 +333,13 @@
             document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tabName));
         }
 
+        // ========== הוספת האזנה לטאבים ==========
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+            });
+        });
+
         function populateWeaponSelect(availableList) {
             const select = document.getElementById('weaponSelect');
             const list = availableList || allWeapons.filter(w => !assignedWeapons.includes(w.serial) && !allEmployees.some(e => e.weapons && e.weapons.split(',').map(x=>x.trim()).includes(w.serial)));
@@ -395,7 +402,6 @@
             if (confirm('האם למחוק?')) {
                 postForm('delete', { sheet: 'employees', national_id: nationalId });
                 showToast('המאבטח נמחק');
-                // רענון אוטומטי אחרי 1.5 שניות
                 setTimeout(() => loadEmployees(true), 1500);
             }
         };
