@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>StrongFire – מערכת ניהול</title>
-    <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -426,51 +426,31 @@
             }
             clearAllCaches();
             document.getElementById('employeeModal').classList.remove('active');
-            showToast('השינוי נשלח – בודק עדכון…');
-            // אימות: טען מחדש ובדוק אם השינוי נקלט
+            showToast('שינוי נשלח, בודק עדכון…');
             setTimeout(async () => {
-                const fresh = await jsonp(API_URL + '?action=employeesPage');
-                const updated = fresh.employees || [];
-                const changed = currentEditId
-                    ? updated.find(e => e.national_id == currentEditId)
-                    : updated.find(e => e.national_id == nationalId);
-                if (changed) {
-                    const matches = currentEditId
-                        ? (changed.level || '' === data.level || '') && (changed.status || '' === data.status || '') && (changed.name || '' === data.name || '')
-                        : true;
-                    if (matches) {
-                        showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
-                        empData = { employees: updated, weapons: fresh.weapons || [] };
-                        setCache('employees_cache', empData);
-                        renderEmployeesTable();
-                    } else {
-                        showToast('השמירה נכשלה – נסה שוב', 'error');
-                        loadEmployees(true);
-                    }
+                await loadEmployees(true);
+                const updated = empData.employees.find(e => e.national_id == (currentEditId || nationalId));
+                if (updated) {
+                    showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
                 } else {
                     showToast('השמירה נכשלה – נסה שוב', 'error');
-                    loadEmployees(true);
                 }
-            }, 2500);
+            }, 3000);
         }
         window.deleteEmployee = function(nationalId) {
             if (!confirm('למחוק?')) return;
             postForm('delete', { sheet: 'employees', national_id: nationalId });
             clearAllCaches();
-            showToast('המחיקה נשלחה – בודק עדכון…');
+            showToast('מחיקה נשלחה, בודק עדכון…');
             setTimeout(async () => {
-                const fresh = await jsonp(API_URL + '?action=employeesPage');
-                const exists = (fresh.employees || []).some(e => e.national_id == nationalId);
+                await loadEmployees(true);
+                const exists = empData.employees.some(e => e.national_id == nationalId);
                 if (!exists) {
                     showToast('המאבטח נמחק');
-                    empData = fresh;
-                    setCache('employees_cache', empData);
-                    renderEmployeesTable();
                 } else {
                     showToast('המחיקה נכשלה – נסה שוב', 'error');
-                    loadEmployees(true);
                 }
-            }, 2500);
+            }, 3000);
         };
 
         // ===================== WEAPONS =====================
@@ -583,40 +563,31 @@
             }
             clearAllCaches();
             document.getElementById('weaponModal').classList.remove('active');
-            showToast('השינוי נשלח – בודק עדכון…');
+            showToast('שינוי נשלח, בודק עדכון…');
             setTimeout(async () => {
-                const fresh = await jsonp(API_URL + '?action=weaponsPage');
-                const updated = fresh.weapons || [];
-                const changed = updated.find(w => w.serial == serial);
-                if (changed) {
+                await loadWeapons(true);
+                const updated = wepData.weapons.find(w => w.serial == serial);
+                if (updated) {
                     showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
-                    wepData = fresh;
-                    setCache('weapons_cache', wepData);
-                    renderWeaponsTable();
                 } else {
                     showToast('השמירה נכשלה – נסה שוב', 'error');
-                    loadWeapons(true);
                 }
-            }, 2500);
+            }, 3000);
         }
         window.deleteWeapon = function(serial) {
             if (!confirm('למחוק?')) return;
             postForm('delete', { sheet: 'weapons', serial });
             clearAllCaches();
-            showToast('המחיקה נשלחה – בודק עדכון…');
+            showToast('מחיקה נשלחה, בודק עדכון…');
             setTimeout(async () => {
-                const fresh = await jsonp(API_URL + '?action=weaponsPage');
-                const exists = (fresh.weapons || []).some(w => w.serial == serial);
+                await loadWeapons(true);
+                const exists = wepData.weapons.some(w => w.serial == serial);
                 if (!exists) {
                     showToast('הנשק נמחק');
-                    wepData = fresh;
-                    setCache('weapons_cache', wepData);
-                    renderWeaponsTable();
                 } else {
                     showToast('המחיקה נכשלה – נסה שוב', 'error');
-                    loadWeapons(true);
                 }
-            }, 2500);
+            }, 3000);
         };
 
         // ===================== INIT =====================
