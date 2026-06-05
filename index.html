@@ -2,10 +2,36 @@
 <html lang="he">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=dashboard.html">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StrongFire</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root { --bg: #0F172A; --text: #F1F5F9; }
+        body.light { --bg: #F8FAFC; --text: #0F172A; }
+        body {
+            margin:0; height:100vh; display:flex; align-items:center; justify-content:center;
+            background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif;
+            transition: opacity 0.2s;
+        }
+        .splash { text-align:center; }
+        .splash i { font-size:3rem; color:#3B82F6; background:rgba(59,130,246,0.1); padding:1rem; border-radius:1rem; margin-bottom:1rem; }
+        .splash h1 { font-size:2rem; font-weight:700; }
+    </style>
 </head>
 <body>
-    <p>מועבר ללוח הבקרה… <a href="dashboard.html">לחץ כאן</a> אם לא הועברת.</p>
+    <div class="splash">
+        <i class="fas fa-shield-haltered"></i>
+        <h1>StrongFire</h1>
+    </div>
+    <script>
+        // ערכת נושא בהתאם ל‑localStorage
+        if (localStorage.getItem('strongfire_theme') === 'light') {
+            document.body.classList.add('light');
+        }
+        // מעבר מיידי ללוח הבקרה
+        setTimeout(() => {
+            window.location.replace('dashboard.html');
+        }, 250);
+    </script>
 </body>
 </html>
