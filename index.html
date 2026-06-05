@@ -1,87 +1,591 @@
-<!-- ... (חלקים עליונים, CSS, Sidebar – ללא שינוי) ... -->
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>StrongFire – מערכת ניהול</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --bg-body: #F8FAFC; --text-primary: #0F172A;
+            --bg-card: rgba(255,255,255,0.85); --card-shadow: 0 4px 16px rgba(0,0,0,0.04);
+            --border-color: #E2E8F0; --border-card: rgba(226,232,240,0.6);
+            --bg-sidebar: #FFFFFF; --text-sidebar: #475569; --bg-sidebar-hover: #F1F5F9;
+            --bg-topbar-btn: #E2E8F0; --text-topbar-btn: #0F172A;
+            --text-alerts: #DC2626; --bg-alerts: #FEF2F2; --border-alerts: #FECACA;
+            --table-header-bg: #F1F5F9; --table-header-text: #1E293B; --table-row-hover: #F1F5F9;
+            --chart-card-bg: rgba(255,255,255,0.85); --chart-card-border: rgba(226,232,240,0.6);
+            --grid-color: #E2E8F0; --ticks-color: #475569;
+            --placeholder-color: rgba(15,23,42,0.6);
+            --sidebar-logo-color: #0F172A; --sidebar-border: #E2E8F0;
+        }
+        body.dark {
+            --bg-body: #0F172A; --text-primary: #F1F5F9;
+            --bg-card: rgba(30,41,59,0.8); --card-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            --border-color: #334155; --border-card: rgba(51,65,85,0.5);
+            --bg-sidebar: #0F172A; --text-sidebar: #CBD5E1; --bg-sidebar-hover: rgba(51,65,85,0.45);
+            --bg-topbar-btn: #334155; --text-topbar-btn: #F1F5F9;
+            --text-alerts: #FCA5A5; --bg-alerts: #2A0F0F; --border-alerts: #7F1D1D;
+            --table-header-bg: #1E293B; --table-header-text: #CBD5E1; --table-row-hover: #334155;
+            --chart-card-bg: rgba(30,41,59,0.8); --chart-card-border: rgba(51,65,85,0.5);
+            --grid-color: #334155; --ticks-color: #CBD5E1;
+            --placeholder-color: rgba(241,245,249,0.6);
+            --sidebar-logo-color: #F1F5F9; --sidebar-border: #1E293B;
+        }
+        * { box-sizing: border-box; margin:0; padding:0; }
+        html,body { overflow-x: hidden; font-family: 'Segoe UI','Inter',system-ui,sans-serif; background: var(--bg-body); color: var(--text-primary); transition: background 0.3s, color 0.2s; }
+        .sidebar { transition: transform 0.3s; position: fixed; right:0; top:0; bottom:0; width:220px; z-index:30; background: var(--bg-sidebar); border-left:1px solid var(--sidebar-border); display:flex; flex-direction:column; }
+        .sidebar.collapsed { transform: translateX(100%); }
+        .sidebar-logo { display:flex; align-items:center; gap:0.75rem; padding:1.5rem 1.5rem 2.25rem; }
+        .sidebar-logo i { font-size:1.8rem; color:#3B82F6; background:rgba(59,130,246,0.1); padding:0.6rem; border-radius:0.75rem; }
+        .sidebar-logo span { font-size:1.3rem; font-weight:700; color:var(--sidebar-logo-color); }
+        .sidebar-nav { flex:1; padding:0.5rem 0.75rem; display:flex; flex-direction:column; gap:0.35rem; }
+        .menu-item { transition: all 0.2s; display:flex; align-items:center; gap:0.75rem; padding:0.7rem 1rem; border-radius:0.5rem; color:var(--text-sidebar); font-size:0.95rem; text-decoration:none; cursor:pointer; }
+        .menu-item i { width:1.25rem; text-align:center; }
+        .menu-item:hover { background:var(--bg-sidebar-hover); color:var(--text-primary); }
+        .menu-item.active { background:rgba(59,130,246,0.12); color:#3B82F6; font-weight:600; }
+        .menu-item.active::before { content:''; position:absolute; right:0; top:50%; transform:translateY(-50%); width:4px; height:24px; background:#3B82F6; border-radius:0 4px 4px 0; }
+        .sidebar-footer { padding:1rem; border-top:1px solid var(--sidebar-border); margin-top:auto; }
+        .theme-toggle-btn { width:100%; display:flex; align-items:center; justify-content:center; gap:0.5rem; padding:0.65rem 1rem; border-radius:0.5rem; background:var(--bg-topbar-btn); color:var(--text-topbar-btn); border:none; cursor:pointer; font-size:0.9rem; }
+        .topbar-btn { background:var(--bg-topbar-btn); color:var(--text-topbar-btn); border-radius:9999px; padding:0.35rem 0.75rem; display:inline-flex; align-items:center; gap:0.25rem; border:none; cursor:pointer; font-size:0.85rem; }
+        .content-area { transition:margin-right 0.3s; margin-right:220px; padding:24px; height:100vh; overflow-y:auto; }
+        .sidebar.collapsed + .content-area { margin-right:0; }
+        .page { display:none; }
+        .page.active { display:block; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .kpi-card { min-height: 120px; display: flex; flex-direction: column; justify-content: center; border-radius: 18px; border: 1px solid var(--border-card); padding: 1.15rem; background: var(--bg-card); backdrop-filter: blur(10px); color: var(--text-primary); box-shadow: var(--card-shadow); }
+        .kpi-card.positive { border-top: 3px solid #10B981; } .kpi-card.warning { border-top: 3px solid #EF4444; } .kpi-card.info { border-top: 3px solid #3B82F6; }
+        .kpi-icon { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; font-size: 1.05rem; margin-bottom: 0.75rem; }
+        .kpi-icon.blue { background: rgba(59,130,246,0.15); color: #3B82F6; } .kpi-icon.green { background: rgba(16,185,129,0.15); color: #10B981; } .kpi-icon.red { background: rgba(239,68,68,0.15); color: #EF4444; } .kpi-icon.purple { background: rgba(139,92,246,0.15); color: #8B5CF6; }
+        .progress-bar { width: 100%; height: 6px; background: var(--border-color); border-radius: 9999px; margin-top: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; border-radius: 9999px; background: linear-gradient(90deg, #2563EB, #3B82F6); }
+        .chart-card, .table-card { background: var(--chart-card-bg); border: 1px solid var(--chart-card-border); border-radius: 1rem; padding: 1rem; backdrop-filter: blur(10px); box-shadow: var(--card-shadow); }
+        .alerts-card { border-radius: 1rem; padding: 1rem; margin-bottom: 1.5rem; background: var(--bg-alerts); border: 1px solid var(--border-alerts); color: var(--text-alerts); }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.65rem; text-align: right; font-size: 0.9rem; }
+        th { background: var(--table-header-bg); color: var(--table-header-text); border-bottom: 1px solid var(--border-color); font-weight: 600; }
+        tbody tr:hover { background: var(--table-row-hover); }
+        .status-badge { padding:0.15rem 0.5rem; border-radius:9999px; font-size:0.7rem; font-weight:600; display:inline-block; }
+        .status-active { background:rgba(16,185,129,0.2); color:#10B981; } .status-blocked { background:rgba(239,68,68,0.2); color:#EF4444; }
+        .status-available { background:rgba(16,185,129,0.2); color:#10B981; } .status-assigned { background:rgba(245,158,11,0.2); color:#F59E0B; }
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100; }
+        .modal.active { display:flex; }
+        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:600px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; height:480px; display:flex; flex-direction:column; }
+        @keyframes slideUp { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
+        .modal-body { overflow-y:auto; flex:1; }
+        .modal-close { position:absolute; top:10px; left:10px; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-sidebar); transition:color 0.2s; }
+        .modal-close:hover { color:#EF4444; }
+        .tabs { display:flex; gap:0.25rem; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color); }
+        .tab { padding:0.5rem 1rem; cursor:pointer; border-radius:0.5rem 0.5rem 0 0; background:transparent; border:none; color:var(--text-sidebar); font-size:0.85rem; font-weight:500; transition:all 0.2s; position:relative; display:flex; align-items:center; gap:0.5rem; }
+        .tab i { font-size:1rem; }
+        .tab.active { color:#3B82F6; font-weight:600; background:rgba(59,130,246,0.05); }
+        .tab.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:3px; background:#3B82F6; border-radius:3px 3px 0 0; }
+        .tab-content { display:none; }
+        .tab-content.active { display:block; }
+        .form-group { margin-bottom:0.9rem; }
+        .form-group label { display:block; margin-bottom:0.25rem; font-weight:500; font-size:0.85rem; }
+        .form-group input, .form-group select { width:100%; padding:0.5rem; border:1px solid var(--border-color); border-radius:0.5rem; background:var(--bg-card); color:var(--text-primary); transition:border-color 0.2s; font-size:0.9rem; }
+        .form-group input:focus, .form-group select:focus { outline:none; border-color:#3B82F6; box-shadow:0 0 0 3px rgba(59,130,246,0.15); }
+        .search-bar { display:flex; gap:1rem; margin-bottom:1.5rem; padding:0.5rem 1rem; background:var(--chart-card-bg); border:1px solid var(--chart-card-border); border-radius:1rem; backdrop-filter:blur(10px); flex-wrap:wrap; align-items:center; }
+        .search-bar input { flex:1; min-width:180px; border:none; background:transparent; padding:0.5rem; font-size:0.95rem; color:var(--text-primary); outline:none; }
+        .weapon-assign-list { max-height:150px; overflow-y:auto; margin-bottom:1rem; }
+        .weapon-item { display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:var(--bg-card); border:1px solid var(--border-color); border-radius:0.5rem; margin-bottom:0.4rem; }
+        .btn-small { padding:0.25rem 0.6rem; font-size:0.75rem; border-radius:9999px; }
+        .toast { position:fixed; bottom:20px; left:20px; background:#10B981; color:white; padding:0.75rem 1.25rem; border-radius:0.5rem; z-index:200; animation:slideUp 0.3s ease; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+        .doc-table { width:100%; border-collapse:collapse; }
+        .doc-table th, .doc-table td { padding:0.5rem; font-size:0.8rem; }
+        @media (max-width:1024px) { .content-area { padding:16px; margin-right:0; } .sidebar { transform:translateX(100%); } .sidebar.collapsed { transform:translateX(0); } .search-bar { flex-direction: column; align-items: stretch; } .tabs { overflow-x:auto; white-space:nowrap; } }
+    </style>
+</head>
+<body class="dark">
+    <aside class="sidebar">
+        <div class="sidebar-logo"><i class="fas fa-shield-haltered"></i><span>StrongFire</span></div>
+        <nav class="sidebar-nav">
+            <a class="menu-item active" data-page="dashboard"><i class="fas fa-tachometer-alt"></i> לוח בקרה</a>
+            <a class="menu-item" data-page="employees"><i class="fas fa-users"></i> מאבטחים</a>
+            <a class="menu-item" data-page="weapons"><i class="fas fa-gun"></i> נשקים</a>
+        </nav>
+        <div class="sidebar-footer">
+            <button id="themeToggleSide" class="theme-toggle-btn"><i class="fas fa-sun"></i> מצב בהיר</button>
+        </div>
+    </aside>
 
-<script>
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+    <div class="content-area" id="mainContent"></div>
 
-    // ... (jsonp, showToast, formatDate, Cache helpers – ללא שינוי) ...
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
 
-    // ========== פונקציית POST חדשה (מחליפה את postForm) ==========
-    function postAjax(action, data) {
-        return new Promise((resolve) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', API_URL);
-            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-            const params = new URLSearchParams();
-            params.append('action', action);
-            params.append('sheet', data.sheet || 'employees');
-            for (let key in data) {
-                params.append(key, data[key]);
-            }
-            xhr.onload = () => {
-                try {
-                    const res = JSON.parse(xhr.responseText);
-                    resolve(res && res.success);
-                } catch(e) {
-                    resolve(false);
-                }
-            };
-            xhr.onerror = () => resolve(false);
-            xhr.send(params);
+        function jsonp(url) {
+            return new Promise((resolve, reject) => {
+                const callback = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+                const script = document.createElement('script');
+                window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
+                script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
+                script.onerror = () => { delete window[callback]; script.remove(); reject('JSONP error'); };
+                document.body.appendChild(script);
+            });
+        }
+
+        function postAjax(action, data) {
+            return new Promise((resolve) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', API_URL);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                const params = new URLSearchParams();
+                params.append('action', action);
+                params.append('sheet', data.sheet || 'employees');
+                for (let key in data) { params.append(key, data[key]); }
+                xhr.onload = () => {
+                    try { resolve(JSON.parse(xhr.responseText).success); } catch(e) { resolve(false); }
+                };
+                xhr.onerror = () => resolve(false);
+                xhr.send(params);
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.createElement('div'); toast.className = 'toast';
+            toast.innerHTML = `<i class="fas fa-check-circle mr-1"></i> ${msg}`;
+            document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
+        }
+
+        function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
+
+        function getCached(key, maxAge = 300000) {
+            const cached = sessionStorage.getItem(key);
+            if (!cached) return null;
+            const { data, timestamp } = JSON.parse(cached);
+            return (Date.now() - timestamp < maxAge) ? data : null;
+        }
+        function setCache(key, data) { sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() })); }
+        function clearAllCaches() { ['dashboard_cache','employees_cache','weapons_cache'].forEach(k => sessionStorage.removeItem(k)); }
+
+        let currentPage = 'dashboard';
+        const pageRenderers = {};
+        function registerPage(name, renderFn) { pageRenderers[name] = renderFn; }
+        function navigateTo(page) {
+            currentPage = page;
+            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+            document.querySelector(`.menu-item[data-page="${page}"]`).classList.add('active');
+            if (pageRenderers[page]) pageRenderers[page]();
+        }
+        document.querySelectorAll('.menu-item[data-page]').forEach(item => {
+            item.addEventListener('click', e => { e.preventDefault(); navigateTo(item.dataset.page); });
         });
-    }
 
-    // ... (שאר הפונקציות) ...
+        function setTheme(t) {
+            document.body.classList.toggle('dark', t === 'dark');
+            localStorage.setItem('strongfire_theme', t);
+            document.getElementById('themeToggleSide').innerHTML = t === 'dark' ? '<i class="fas fa-moon"></i> מצב כהה' : '<i class="fas fa-sun"></i> מצב בהיר';
+        }
+        document.getElementById('themeToggleSide').addEventListener('click', () => setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
 
-    async function saveEmployee() {
-        const name = document.getElementById('inputName').value.trim();
-        const nationalId = document.getElementById('inputNationalId').value.trim();
-        if (!name || !nationalId) return alert('שם ותעודת זהות נדרשים');
-        const data = {
-            name, national_id: nationalId,
-            level: document.getElementById('inputLevel').value,
-            course: document.getElementById('inputCourse').value,
-            status: document.getElementById('inputStatus').value,
-            license_expiry: document.getElementById('inputLicense').value,
-            medical_expiry: document.getElementById('inputMedical').value,
-            training_expiry: document.getElementById('inputTraining').value,
-            weapons: assignedWeapons.join(', ')
+        // ===================== DASHBOARD =====================
+        registerPage('dashboard', () => {
+            document.getElementById('mainContent').innerHTML = `
+                <h1 class="text-2xl font-bold mb-5">לוח בקרה</h1>
+                <button id="refreshDashboardBtn" class="topbar-btn mb-4"><i class="fas fa-sync-alt"></i> רענן</button>
+                <div class="kpi-grid" id="kpiGrid"></div>
+                <div class="charts-row flex gap-6 mb-6">
+                    <div class="chart-card flex-1"><canvas id="lineChart" height="180"></canvas></div>
+                    <div class="chart-card" style="width:33%"><canvas id="donutChart" height="180"></canvas></div>
+                </div>
+                <div class="alerts-card" id="alertsCard">אין התראות</div>
+                <div class="grid grid-cols-2 gap-6">
+                    <div class="table-card"><h3>עובדים חסומים</h3><table id="blockedTable"></table></div>
+                    <div class="table-card"><h3>נשקים באיחור</h3><table id="overdueTable"></table></div>
+                </div>`;
+            loadDashboard(false);
+            document.getElementById('refreshDashboardBtn').addEventListener('click', () => loadDashboard(true));
+        });
+
+        async function loadDashboard(forceRefresh) {
+            const CACHE_KEY = 'dashboard_cache';
+            const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
+            if (cachedData) { renderDashboard(cachedData); refreshDashboardInBackground(CACHE_KEY); return; }
+            const data = await jsonp(API_URL + '?action=dashboard');
+            setCache(CACHE_KEY, data); renderDashboard(data);
+        }
+        async function refreshDashboardInBackground(CACHE_KEY) {
+            try { const fresh = await jsonp(API_URL + '?action=dashboard'); setCache(CACHE_KEY, fresh); if (currentPage === 'dashboard') renderDashboard(fresh); } catch(e) {}
+        }
+        function renderDashboard({ employees, weapons, checkouts, alerts }) {
+            const totalWeapons = weapons.length;
+            const weaponsOut = checkouts.filter(c => c.status === 'פעיל').length;
+            const overdue = checkouts.filter(c => c.status === 'פעיל' && new Date(c.checkout_date) < new Date(Date.now() - 7*86400000)).length;
+            const totalEmp = employees.length;
+            const blocked = employees.filter(e => e.status === 'חסום').length;
+            const safe = totalWeapons - weaponsOut;
+            const activeEmp = totalEmp - blocked;
+
+            document.getElementById('kpiGrid').innerHTML = [
+                {title:'סה"כ נשקים', value:totalWeapons, icon:'fa-gun', color:'purple'},
+                {title:'נשקים בכספת', value:safe, icon:'fa-shield-alt', color:'blue', pct:Math.round(safe/totalWeapons*100)},
+                {title:'נשקים בחוץ', value:weaponsOut, icon:'fa-arrow-right', color:'amber'},
+                {title:'נשקים באיחור', value:overdue, icon:'fa-clock', color:'red'},
+                {title:'סה"כ עובדים', value:totalEmp, icon:'fa-users', color:'purple'},
+                {title:'עובדים כשירים', value:activeEmp, icon:'fa-check-circle', color:'green', pct:Math.round(activeEmp/totalEmp*100)},
+                {title:'עובדים חסומים', value:blocked, icon:'fa-ban', color:'red'}
+            ].map(c => `<div class="kpi-card">
+                <div class="kpi-icon ${c.color}"><i class="fas ${c.icon}"></i></div>
+                <div class="text-xs opacity-75">${c.title}</div>
+                <div class="text-2xl font-bold">${c.value}</div>
+                ${c.pct ? `<div class="progress-bar"><div class="progress-fill" style="width:${c.pct}%"></div></div>` : ''}
+            </div>`).join('');
+
+            if (window.donut) window.donut.destroy();
+            window.donut = new Chart(document.getElementById('donutChart').getContext('2d'), {
+                type:'doughnut', data:{labels:['בכספת','בחוץ','בטיפול'], datasets:[{data:[safe, weaponsOut, overdue], backgroundColor:['#3B82F6','#F59E0B','#EF4444']}]}
+            });
+
+            document.getElementById('alertsCard').innerHTML = alerts.filter(a => a.severity==='גבוה' && a.status==='פתוח').map(a => `<p>${a.message}</p>`).join('') || 'אין התראות';
+            document.getElementById('blockedTable').innerHTML = '<tr><th>שם</th><th>ת.ז.</th><th>תפקיד</th></tr>' + employees.filter(e => e.status==='חסום').map(e => `<tr><td>${e.name}</td><td>${e.national_id}</td><td>${e.level}</td></tr>`).join('');
+            document.getElementById('overdueTable').innerHTML = '<tr><th>סיריאלי</th><th>מאבטח</th><th>תאריך</th></tr>' + checkouts.filter(c => c.status==='פעיל' && new Date(c.checkout_date) < new Date(Date.now()-7*86400000)).map(c => `<tr><td>${c.weapon_serial}</td><td>${employees.find(e => e.uid==c.employee_uid)?.name||'?'}</td><td>${formatDate(c.checkout_date)}</td></tr>`).join('');
+        }
+
+        // ===================== EMPLOYEES =====================
+        registerPage('employees', () => {
+            document.getElementById('mainContent').innerHTML = `
+                <h1 class="text-2xl font-bold mb-5">מאבטחים</h1>
+                <div class="search-bar">
+                    <input type="text" id="empSearch" placeholder="חיפוש…">
+                    <select id="empLevelFilter" class="topbar-btn"><option value="">כל התפקידים</option><option value="שומר">שומר</option><option value="מאבטח">מאבטח</option><option value="מנהל יחידה">מנהל יחידה</option></select>
+                    <button id="addEmployeeBtn" class="topbar-btn"><i class="fas fa-plus"></i> הוסף</button>
+                    <button id="refreshEmployeesBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
+                </div>
+                <div class="table-card"><table id="employeesTable"><thead><tr><th>#</th><th>שם</th><th>ת.ז.</th><th>תפקיד</th><th>קורס</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody></tbody></table></div>
+                <div id="employeeModal" class="modal"><div class="modal-content">
+                    <button class="modal-close" onclick="document.getElementById('employeeModal').classList.remove('active')">&times;</button>
+                    <h3 class="text-lg font-bold mb-3" id="modalTitle">הוספת מאבטח</h3>
+                    <div class="tabs">
+                        <button class="tab active" data-tab="personal"><i class="fas fa-user"></i> פרטים</button>
+                        <button class="tab" data-tab="weapons"><i class="fas fa-gun"></i> נשקים</button>
+                        <button class="tab" data-tab="compliance"><i class="fas fa-clipboard-check"></i> כשירויות</button>
+                        <button class="tab" data-tab="documents"><i class="fas fa-folder-open"></i> אישורים</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="tab-content active" id="tab-personal">
+                            <div class="flex flex-wrap gap-4">
+                                <div class="form-group flex-1 min-w-[45%]"><label>שם מלא</label><input type="text" id="inputName"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תעודת זהות</label><input type="text" id="inputNationalId"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תפקיד</label><select id="inputLevel"><option value="שומר">שומר</option><option value="מאבטח">מאבטח</option><option value="מנהל יחידה">מנהל יחידה</option></select></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>קורס</label><select id="inputCourse"><option value="בסיס">בסיס</option><option value="א'">א'</option><option value="ב'">ב'</option><option value="א' מתקדם">א' מתקדם</option></select></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>סטטוס</label><select id="inputStatus"><option value="פעיל">פעיל</option><option value="חסום">חסום</option></select></div>
+                            </div>
+                        </div>
+                        <div class="tab-content" id="tab-weapons">
+                            <p class="text-sm opacity-70 mb-2">נשקים משויכים</p>
+                            <div class="weapon-assign-list" id="assignedWeaponsList"></div>
+                            <div class="form-group"><label>הוסף נשק</label><select id="weaponSelect" style="width:100%;"></select><button class="topbar-btn btn-small mt-2" id="addWeaponBtn"><i class="fas fa-plus"></i> שייך</button></div>
+                        </div>
+                        <div class="tab-content" id="tab-compliance">
+                            <div class="flex flex-wrap gap-4">
+                                <div class="form-group flex-1 min-w-[45%]"><label>תוקף רישיון</label><input type="date" id="inputLicense"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תוקף בדיקת בריאות</label><input type="date" id="inputMedical"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תוקף הדרכה</label><input type="date" id="inputTraining"></div>
+                            </div>
+                        </div>
+                        <div class="tab-content" id="tab-documents">
+                            <p class="text-sm opacity-70 mb-2">מסמכים משויכים</p>
+                            <table class="doc-table">
+                                <thead><tr><th>סוג מסמך</th><th>תאריך תוקף</th><th>סטטוס</th></tr></thead>
+                                <tbody>
+                                    <tr><td>רישיון נשק</td><td>31/12/2025</td><td><span style="color:#10B981;">בתוקף</span></td></tr>
+                                    <tr><td>בדיקת בריאות</td><td>01/10/2024</td><td><span style="color:#EF4444;">פג תוקף</span></td></tr>
+                                    <tr><td>הדרכה שנתית</td><td>11/11/2025</td><td><span style="color:#10B981;">בתוקף</span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-4 justify-end">
+                        <button class="topbar-btn px-3 py-1" style="background:#3B82F6; color:white;" id="saveEmployeeBtn">שמור</button>
+                        <button class="topbar-btn px-3 py-1" onclick="document.getElementById('employeeModal').classList.remove('active')">ביטול</button>
+                    </div>
+                </div></div>`;
+            loadEmployees(false);
+            bindEmployeeEvents();
+        });
+
+        let empData = { employees: [], weapons: [] };
+        let currentEditId = null, assignedWeapons = [];
+
+        async function loadEmployees(forceRefresh) {
+            const CACHE_KEY = 'employees_cache';
+            const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
+            if (cachedData) { empData = cachedData; renderEmployeesTable(); refreshEmployeesInBackground(CACHE_KEY); return; }
+            empData = await jsonp(API_URL + '?action=employeesPage');
+            setCache(CACHE_KEY, empData); renderEmployeesTable();
+        }
+        async function refreshEmployeesInBackground(CACHE_KEY) {
+            try { empData = await jsonp(API_URL + '?action=employeesPage'); setCache(CACHE_KEY, empData); if (currentPage === 'employees') renderEmployeesTable(); } catch(e) {}
+        }
+        function renderEmployeesTable() {
+            const term = (document.getElementById('empSearch')?.value || '').toLowerCase();
+            const level = document.getElementById('empLevelFilter')?.value || '';
+            const filtered = empData.employees.filter(e => {
+                const matchSearch = !term || (e.name||'').toLowerCase().includes(term) || (e.national_id||'').includes(term) || (e.level||'').toLowerCase().includes(term) || (e.course||'').toLowerCase().includes(term);
+                return matchSearch && (!level || e.level === level);
+            });
+            const tbody = document.querySelector('#employeesTable tbody');
+            tbody.innerHTML = filtered.map(e => `<tr>
+                <td>${e.uid}</td><td>${e.name}</td><td>${e.national_id}</td><td>${e.level}</td><td>${e.course||''}</td>
+                <td><span class="status-badge ${e.status==='פעיל'?'status-active':'status-blocked'}">${e.status}</span></td>
+                <td>
+                    <button class="topbar-btn px-2 py-0.5" onclick="editEmployee('${e.national_id}')"><i class="fas fa-edit"></i></button>
+                    <button class="topbar-btn px-2 py-0.5" onclick="deleteEmployee('${e.national_id}')"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`).join('');
+        }
+        function bindEmployeeEvents() {
+            document.getElementById('empSearch').addEventListener('input', renderEmployeesTable);
+            document.getElementById('empLevelFilter').addEventListener('change', renderEmployeesTable);
+            document.getElementById('addEmployeeBtn').addEventListener('click', openAddModal);
+            document.getElementById('saveEmployeeBtn').addEventListener('click', saveEmployee);
+            document.getElementById('refreshEmployeesBtn').addEventListener('click', () => loadEmployees(true));
+            document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
+            document.getElementById('addWeaponBtn').addEventListener('click', () => {
+                const serial = document.getElementById('weaponSelect').value;
+                if (!serial) return;
+                assignedWeapons.push(serial);
+                document.getElementById('weaponSelect').value = '';
+                renderAssignedWeapons();
+                populateWeaponSelect();
+            });
+        }
+        function openAddModal() {
+            currentEditId = null;
+            document.getElementById('modalTitle').innerText = 'הוספת מאבטח';
+            ['inputName','inputNationalId'].forEach(id => document.getElementById(id).value='');
+            document.getElementById('inputLevel').value='מאבטח';
+            document.getElementById('inputCourse').value='בסיס';
+            document.getElementById('inputStatus').value='פעיל';
+            ['inputLicense','inputMedical','inputTraining'].forEach(id => document.getElementById(id).value='');
+            assignedWeapons = []; renderAssignedWeapons(); populateWeaponSelect();
+            document.getElementById('employeeModal').classList.add('active');
+            switchTab('personal');
+        }
+        window.editEmployee = function(nationalId) {
+            const emp = empData.employees.find(e => e.national_id == nationalId);
+            if (!emp) return;
+            currentEditId = nationalId;
+            document.getElementById('modalTitle').innerText = 'עריכת מאבטח';
+            document.getElementById('inputName').value = emp.name;
+            document.getElementById('inputNationalId').value = emp.national_id;
+            document.getElementById('inputLevel').value = emp.level;
+            document.getElementById('inputCourse').value = emp.course || 'בסיס';
+            document.getElementById('inputStatus').value = emp.status;
+            document.getElementById('inputLicense').value = emp.license_expiry || '';
+            document.getElementById('inputMedical').value = emp.medical_expiry || '';
+            document.getElementById('inputTraining').value = emp.training_expiry || '';
+            assignedWeapons = emp.weapons ? emp.weapons.split(',').map(w=>w.trim()) : [];
+            const otherAssigned = empData.employees.filter(e => e.national_id !== nationalId).flatMap(e => (e.weapons||'').split(',').map(w=>w.trim()));
+            const availableWeaponsList = empData.weapons.filter(w => !otherAssigned.includes(w.serial));
+            populateWeaponSelect(availableWeaponsList); renderAssignedWeapons();
+            document.getElementById('employeeModal').classList.add('active');
+            switchTab('personal');
+        };
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tabName));
+        }
+        function populateWeaponSelect(availableList) {
+            const select = document.getElementById('weaponSelect');
+            const list = availableList || empData.weapons.filter(w => !assignedWeapons.includes(w.serial) && !empData.employees.some(e => e.weapons && e.weapons.split(',').map(x=>x.trim()).includes(w.serial)));
+            select.innerHTML = '<option value="">בחר נשק…</option>' + list.map(w => `<option value="${w.serial}">${w.serial} – ${w.type}</option>`).join('');
+        }
+        function renderAssignedWeapons() {
+            const container = document.getElementById('assignedWeaponsList');
+            if (!assignedWeapons.length) { container.innerHTML = '<p class="text-xs opacity-50">אין נשקים משויכים</p>'; return; }
+            container.innerHTML = assignedWeapons.map(s => `<div class="weapon-item"><div><i class="fas fa-gun"></i> ${s}</div><button class="topbar-btn btn-small" onclick="removeAssignedWeapon('${s}')"><i class="fas fa-times"></i></button></div>`).join('');
+        }
+        window.removeAssignedWeapon = function(serial) { assignedWeapons = assignedWeapons.filter(s => s !== serial); renderAssignedWeapons(); populateWeaponSelect(); };
+        async function saveEmployee() {
+            const name = document.getElementById('inputName').value.trim();
+            const nationalId = document.getElementById('inputNationalId').value.trim();
+            if (!name || !nationalId) return alert('שם ותעודת זהות נדרשים');
+            const data = {
+                name, national_id: nationalId,
+                level: document.getElementById('inputLevel').value,
+                course: document.getElementById('inputCourse').value,
+                status: document.getElementById('inputStatus').value,
+                license_expiry: document.getElementById('inputLicense').value,
+                medical_expiry: document.getElementById('inputMedical').value,
+                training_expiry: document.getElementById('inputTraining').value,
+                weapons: assignedWeapons.join(', ')
+            };
+            let success = false;
+            if (currentEditId) {
+                data.national_id = currentEditId;
+                success = await postAjax('update', { ...data, sheet: 'employees', national_id: currentEditId });
+            } else {
+                if (empData.employees.some(e => e.national_id == nationalId)) return alert('תעודת זהות קיימת');
+                const maxUid = Math.max(...empData.employees.map(e => e.uid||0), 0);
+                data.uid = maxUid + 1;
+                success = await postAjax('add', { ...data, sheet: 'employees' });
+            }
+            if (success) {
+                clearAllCaches();
+                loadEmployees(true);
+                setTimeout(() => loadEmployees(true), 1500);
+                document.getElementById('employeeModal').classList.remove('active');
+                showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
+            } else {
+                alert('השמירה נכשלה. אנא בדוק את החיבור.');
+            }
+        }
+        window.deleteEmployee = async function(nationalId) {
+            if (!confirm('למחוק?')) return;
+            const success = await postAjax('delete', { sheet: 'employees', national_id: nationalId });
+            if (success) {
+                clearAllCaches();
+                loadEmployees(true);
+                setTimeout(() => loadEmployees(true), 1500);
+                showToast('המאבטח נמחק');
+            } else {
+                alert('המחיקה נכשלה. אנא בדוק את החיבור.');
+            }
         };
 
-        let success = false;
-        if (currentEditId) {
-            data.national_id = currentEditId;
-            success = await postAjax('update', { ...data, sheet: 'employees', national_id: currentEditId });
-        } else {
-            if (empData.employees.some(e => e.national_id == nationalId)) return alert('תעודת זהות קיימת');
-            const maxUid = Math.max(...empData.employees.map(e => e.uid||0), 0);
-            data.uid = maxUid + 1;
-            success = await postAjax('add', { ...data, sheet: 'employees' });
-        }
+        // ===================== WEAPONS =====================
+        registerPage('weapons', () => {
+            document.getElementById('mainContent').innerHTML = `
+                <h1 class="text-2xl font-bold mb-5">נשקים</h1>
+                <div class="search-bar">
+                    <input type="text" id="wepSearch" placeholder="חיפוש…">
+                    <select id="wepStatusFilter" class="topbar-btn"><option value="">כל הסטטוסים</option><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select>
+                    <button id="addWeaponBtn2" class="topbar-btn"><i class="fas fa-plus"></i> הוסף</button>
+                    <button id="refreshWeaponsBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
+                </div>
+                <div class="table-card"><table id="weaponsTable"><thead><tr><th>סיריאלי</th><th>סוג</th><th>סטטוס</th><th>מיקום</th><th>מאבטח</th><th>פעולות</th></tr></thead><tbody></tbody></table></div>
+                <div id="weaponModal" class="modal"><div class="modal-content">
+                    <button class="modal-close" onclick="document.getElementById('weaponModal').classList.remove('active')">&times;</button>
+                    <h3 class="text-lg font-bold mb-3" id="weaponModalTitle">הוספת נשק</h3>
+                    <div class="modal-body">
+                        <div class="flex flex-wrap gap-4">
+                            <div class="form-group flex-1 min-w-[45%]"><label>מספר סיריאלי</label><input type="text" id="inputSerial"></div>
+                            <div class="form-group flex-1 min-w-[45%]"><label>סוג</label><select id="inputType"><option value="רובה M16">רובה M16</option><option value="אקדח גלוק">אקדח גלוק</option><option value="רובה תבור">רובה תבור</option><option value="אקדח יריחו">אקדח יריחו</option></select></div>
+                            <div class="form-group flex-1 min-w-[45%]"><label>סטטוס</label><select id="inputWepStatus"><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select></div>
+                            <div class="form-group flex-1 min-w-[45%]"><label>מיקום</label><input type="text" id="inputLocation" value="כספת A"></div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-4 justify-end">
+                        <button class="topbar-btn px-3 py-1" style="background:#3B82F6; color:white;" id="saveWeaponBtn">שמור</button>
+                        <button class="topbar-btn px-3 py-1" onclick="document.getElementById('weaponModal').classList.remove('active')">ביטול</button>
+                    </div>
+                </div></div>`;
+            loadWeapons(false);
+            bindWeaponEvents();
+        });
 
-        if (success) {
-            clearAllCaches();
-            // רענון מיידי + רענון נוסף כעבור 1.5 שניות למקרה שהשרת מתעכב
-            loadEmployees(true);
-            setTimeout(() => loadEmployees(true), 1500);
-            document.getElementById('employeeModal').classList.remove('active');
-            showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
-        } else {
-            alert('השמירה נכשלה. אנא בדוק את החיבור.');
-        }
-    }
+        let wepData = { weapons: [], employees: [] };
+        let currentEditSerial = null;
 
-    window.deleteEmployee = async function(nationalId) {
-        if (!confirm('למחוק?')) return;
-        const success = await postAjax('delete', { sheet: 'employees', national_id: nationalId });
-        if (success) {
-            clearAllCaches();
-            loadEmployees(true);
-            setTimeout(() => loadEmployees(true), 1500);
-            showToast('המאבטח נמחק');
-        } else {
-            alert('המחיקה נכשלה. אנא בדוק את החיבור.');
+        async function loadWeapons(forceRefresh) {
+            const CACHE_KEY = 'weapons_cache';
+            const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
+            if (cachedData) { wepData = cachedData; renderWeaponsTable(); refreshWeaponsInBackground(CACHE_KEY); return; }
+            wepData = await jsonp(API_URL + '?action=weaponsPage');
+            setCache(CACHE_KEY, wepData); renderWeaponsTable();
         }
-    };
+        async function refreshWeaponsInBackground(CACHE_KEY) {
+            try { wepData = await jsonp(API_URL + '?action=weaponsPage'); setCache(CACHE_KEY, wepData); if (currentPage === 'weapons') renderWeaponsTable(); } catch(e) {}
+        }
+        function renderWeaponsTable() {
+            const term = (document.getElementById('wepSearch')?.value || '').toLowerCase();
+            const status = document.getElementById('wepStatusFilter')?.value || '';
+            const filtered = wepData.weapons.filter(w => {
+                const matchSearch = !term || w.serial.toLowerCase().includes(term) || w.type.toLowerCase().includes(term);
+                return matchSearch && (!status || w.status === status);
+            });
+            const tbody = document.querySelector('#weaponsTable tbody');
+            tbody.innerHTML = filtered.map(w => {
+                const emp = wepData.employees.find(e => (e.weapons||'').split(',').map(x=>x.trim()).includes(w.serial));
+                const empName = emp ? `${emp.name} (${emp.national_id})` : '-';
+                const statusClass = w.status==='פנוי'?'status-available': (w.status==='משויך'?'status-assigned':'status-blocked');
+                return `<tr>
+                    <td>${w.serial}</td><td>${w.type}</td>
+                    <td><span class="status-badge ${statusClass}">${w.status}</span></td>
+                    <td>${w.location||'-'}</td><td>${empName}</td>
+                    <td>
+                        <button class="topbar-btn px-2 py-0.5" onclick="editWeapon('${w.serial}')"><i class="fas fa-edit"></i></button>
+                        <button class="topbar-btn px-2 py-0.5" onclick="deleteWeapon('${w.serial}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+        function bindWeaponEvents() {
+            document.getElementById('wepSearch').addEventListener('input', renderWeaponsTable);
+            document.getElementById('wepStatusFilter').addEventListener('change', renderWeaponsTable);
+            document.getElementById('addWeaponBtn2').addEventListener('click', openAddWeaponModal);
+            document.getElementById('saveWeaponBtn').addEventListener('click', saveWeapon);
+            document.getElementById('refreshWeaponsBtn').addEventListener('click', () => loadWeapons(true));
+        }
+        function openAddWeaponModal() {
+            currentEditSerial = null;
+            document.getElementById('weaponModalTitle').innerText = 'הוספת נשק';
+            ['inputSerial','inputLocation'].forEach(id => document.getElementById(id).value='');
+            document.getElementById('inputType').value='רובה M16';
+            document.getElementById('inputWepStatus').value='פנוי';
+            document.getElementById('weaponModal').classList.add('active');
+        }
+        window.editWeapon = function(serial) {
+            const wep = wepData.weapons.find(w => w.serial == serial);
+            if (!wep) return;
+            currentEditSerial = serial;
+            document.getElementById('weaponModalTitle').innerText = 'עריכת נשק';
+            document.getElementById('inputSerial').value = wep.serial;
+            document.getElementById('inputType').value = wep.type;
+            document.getElementById('inputWepStatus').value = wep.status;
+            document.getElementById('inputLocation').value = wep.location || '';
+            document.getElementById('weaponModal').classList.add('active');
+        };
+        async function saveWeapon() {
+            const serial = document.getElementById('inputSerial').value.trim();
+            if (!serial) return alert('מספר סיריאלי נדרש');
+            const data = {
+                serial,
+                type: document.getElementById('inputType').value,
+                status: document.getElementById('inputWepStatus').value,
+                location: document.getElementById('inputLocation').value
+            };
+            let success = false;
+            if (currentEditSerial) {
+                data.serial = currentEditSerial;
+                success = await postAjax('update', { ...data, sheet: 'weapons', serial: currentEditSerial });
+            } else {
+                success = await postAjax('add', { ...data, sheet: 'weapons' });
+            }
+            if (success) {
+                clearAllCaches();
+                loadWeapons(true);
+                setTimeout(() => loadWeapons(true), 1500);
+                document.getElementById('weaponModal').classList.remove('active');
+                showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
+            } else {
+                alert('השמירה נכשלה. אנא בדוק את החיבור.');
+            }
+        }
+        window.deleteWeapon = async function(serial) {
+            if (!confirm('למחוק?')) return;
+            const success = await postAjax('delete', { sheet: 'weapons', serial });
+            if (success) {
+                clearAllCaches();
+                loadWeapons(true);
+                setTimeout(() => loadWeapons(true), 1500);
+                showToast('הנשק נמחק');
+            } else {
+                alert('המחיקה נכשלה. אנא בדוק את החיבור.');
+            }
+        };
 
-    // (עבור Weapons – יש לעדכן באותו אופן: postAjax במקום postForm)
-</script>
+        // ===================== INIT =====================
+        (function init() {
+            const theme = localStorage.getItem('strongfire_theme') || 'dark';
+            setTheme(theme);
+            navigateTo('dashboard');
+        })();
+    </script>
+</body>
+</html>
