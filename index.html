@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>StrongFire – מערכת ניהול</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -142,10 +142,13 @@
             setTimeout(() => form.remove(), 200);
         }
 
-        function showToast(msg) {
-            const toast = document.createElement('div'); toast.className = 'toast';
-            toast.innerHTML = `<i class="fas fa-check-circle mr-1"></i> ${msg}`;
-            document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
+        function showToast(msg, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.style.background = type === 'error' ? '#EF4444' : '#10B981';
+            toast.innerHTML = `<i class="fas ${type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-1"></i> ${msg}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
         }
 
         function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
@@ -423,18 +426,51 @@
             }
             clearAllCaches();
             document.getElementById('employeeModal').classList.remove('active');
-            showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
-            // רענון מיידי + רענון נוסף כעבור 2 שניות
-            loadEmployees(true);
-            setTimeout(() => loadEmployees(true), 2000);
+            showToast('השינוי נשלח – בודק עדכון…');
+            // אימות: טען מחדש ובדוק אם השינוי נקלט
+            setTimeout(async () => {
+                const fresh = await jsonp(API_URL + '?action=employeesPage');
+                const updated = fresh.employees || [];
+                const changed = currentEditId
+                    ? updated.find(e => e.national_id == currentEditId)
+                    : updated.find(e => e.national_id == nationalId);
+                if (changed) {
+                    const matches = currentEditId
+                        ? (changed.level || '' === data.level || '') && (changed.status || '' === data.status || '') && (changed.name || '' === data.name || '')
+                        : true;
+                    if (matches) {
+                        showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
+                        empData = { employees: updated, weapons: fresh.weapons || [] };
+                        setCache('employees_cache', empData);
+                        renderEmployeesTable();
+                    } else {
+                        showToast('השמירה נכשלה – נסה שוב', 'error');
+                        loadEmployees(true);
+                    }
+                } else {
+                    showToast('השמירה נכשלה – נסה שוב', 'error');
+                    loadEmployees(true);
+                }
+            }, 2500);
         }
         window.deleteEmployee = function(nationalId) {
             if (!confirm('למחוק?')) return;
             postForm('delete', { sheet: 'employees', national_id: nationalId });
             clearAllCaches();
-            showToast('המאבטח נמחק');
-            loadEmployees(true);
-            setTimeout(() => loadEmployees(true), 2000);
+            showToast('המחיקה נשלחה – בודק עדכון…');
+            setTimeout(async () => {
+                const fresh = await jsonp(API_URL + '?action=employeesPage');
+                const exists = (fresh.employees || []).some(e => e.national_id == nationalId);
+                if (!exists) {
+                    showToast('המאבטח נמחק');
+                    empData = fresh;
+                    setCache('employees_cache', empData);
+                    renderEmployeesTable();
+                } else {
+                    showToast('המחיקה נכשלה – נסה שוב', 'error');
+                    loadEmployees(true);
+                }
+            }, 2500);
         };
 
         // ===================== WEAPONS =====================
@@ -547,17 +583,40 @@
             }
             clearAllCaches();
             document.getElementById('weaponModal').classList.remove('active');
-            showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
-            loadWeapons(true);
-            setTimeout(() => loadWeapons(true), 2000);
+            showToast('השינוי נשלח – בודק עדכון…');
+            setTimeout(async () => {
+                const fresh = await jsonp(API_URL + '?action=weaponsPage');
+                const updated = fresh.weapons || [];
+                const changed = updated.find(w => w.serial == serial);
+                if (changed) {
+                    showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
+                    wepData = fresh;
+                    setCache('weapons_cache', wepData);
+                    renderWeaponsTable();
+                } else {
+                    showToast('השמירה נכשלה – נסה שוב', 'error');
+                    loadWeapons(true);
+                }
+            }, 2500);
         }
         window.deleteWeapon = function(serial) {
             if (!confirm('למחוק?')) return;
             postForm('delete', { sheet: 'weapons', serial });
             clearAllCaches();
-            showToast('הנשק נמחק');
-            loadWeapons(true);
-            setTimeout(() => loadWeapons(true), 2000);
+            showToast('המחיקה נשלחה – בודק עדכון…');
+            setTimeout(async () => {
+                const fresh = await jsonp(API_URL + '?action=weaponsPage');
+                const exists = (fresh.weapons || []).some(w => w.serial == serial);
+                if (!exists) {
+                    showToast('הנשק נמחק');
+                    wepData = fresh;
+                    setCache('weapons_cache', wepData);
+                    renderWeaponsTable();
+                } else {
+                    showToast('המחיקה נכשלה – נסה שוב', 'error');
+                    loadWeapons(true);
+                }
+            }, 2500);
         };
 
         // ===================== INIT =====================
