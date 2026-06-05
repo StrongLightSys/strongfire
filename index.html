@@ -68,10 +68,8 @@
         th { background: var(--table-header-bg); color: var(--table-header-text); border-bottom: 1px solid var(--border-color); font-weight: 600; }
         tbody tr:hover { background: var(--table-row-hover); }
         .status-badge { padding:0.15rem 0.5rem; border-radius:9999px; font-size:0.7rem; font-weight:600; display:inline-block; }
-        .status-active { background:rgba(16,185,129,0.2); color:#10B981; }
-        .status-blocked { background:rgba(239,68,68,0.2); color:#EF4444; }
-        .status-available { background:rgba(16,185,129,0.2); color:#10B981; }
-        .status-assigned { background:rgba(245,158,11,0.2); color:#F59E0B; }
+        .status-active { background:rgba(16,185,129,0.2); color:#10B981; } .status-blocked { background:rgba(239,68,68,0.2); color:#EF4444; }
+        .status-available { background:rgba(16,185,129,0.2); color:#10B981; } .status-assigned { background:rgba(245,158,11,0.2); color:#F59E0B; }
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100; }
         .modal.active { display:flex; }
         .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:550px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; max-height:70vh; display:flex; flex-direction:column; }
@@ -112,11 +110,62 @@
         </div>
     </aside>
 
-    <div class="content-area" id="mainContent">
-        <!-- pages rendered dynamically -->
-    </div>
+    <div class="content-area" id="mainContent"></div>
+
+    <iframe name="hiddenFrame" style="display:none;"></iframe>
 
     <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+
+        // ===================== JSONP =====================
+        function jsonp(url) {
+            return new Promise((resolve, reject) => {
+                const callback = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+                const script = document.createElement('script');
+                window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
+                script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
+                script.onerror = () => { delete window[callback]; script.remove(); reject('JSONP error'); };
+                document.body.appendChild(script);
+            });
+        }
+
+        function postForm(action, data) {
+            const form = document.createElement('form');
+            form.method = 'POST'; form.action = API_URL; form.target = 'hiddenFrame';
+            form.appendChild(Object.assign(document.createElement('input'), {name:'action', value:action}));
+            form.appendChild(Object.assign(document.createElement('input'), {name:'sheet', value:data.sheet || 'employees'}));
+            for (let key in data) {
+                form.appendChild(Object.assign(document.createElement('input'), {name:key, value:data[key]}));
+            }
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 200);
+        }
+
+        function showToast(msg) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = `<i class="fas fa-check-circle mr-1"></i> ${msg}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2500);
+        }
+
+        function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
+
+        // ===================== Cache =====================
+        function getCached(key, maxAge = 300000) {
+            const cached = sessionStorage.getItem(key);
+            if (!cached) return null;
+            const { data, timestamp } = JSON.parse(cached);
+            return (Date.now() - timestamp < maxAge) ? data : null;
+        }
+        function setCache(key, data) {
+            sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+        }
+        function clearAllCaches() {
+            ['dashboard_cache','employees_cache','weapons_cache'].forEach(k => sessionStorage.removeItem(k));
+        }
+
         // ===================== SPA Engine =====================
         let currentPage = 'dashboard';
         const pageRenderers = {};
@@ -141,31 +190,8 @@
         }
         document.getElementById('themeToggleSide').addEventListener('click', () => setTheme(document.body.classList.contains('dark') ? 'light' : 'dark'));
 
-        // ===================== Server Calls =====================
-        function callServer(func, ...args) {
-            return new Promise((resolve, reject) => {
-                google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[func](...args);
-            });
-        }
-
-        // ===================== Cache Helpers =====================
-        function getCached(key, maxAge = 300000) {
-            const cached = sessionStorage.getItem(key);
-            if (!cached) return null;
-            const { data, timestamp } = JSON.parse(cached);
-            return (Date.now() - timestamp < maxAge) ? data : null;
-        }
-        function setCache(key, data) {
-            sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
-        }
-        function clearAllCaches() {
-            ['dashboard_cache', 'employees_cache', 'weapons_cache'].forEach(k => sessionStorage.removeItem(k));
-        }
-
-        function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
-
         // ===================== DASHBOARD =====================
-        registerPage('dashboard', async () => {
+        registerPage('dashboard', () => {
             document.getElementById('mainContent').innerHTML = `
                 <h1 class="text-2xl font-bold mb-5">לוח בקרה</h1>
                 <button id="refreshDashboardBtn" class="topbar-btn mb-4"><i class="fas fa-sync-alt"></i> רענן</button>
@@ -186,20 +212,15 @@
         async function loadDashboard(forceRefresh) {
             const CACHE_KEY = 'dashboard_cache';
             const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
-
-            if (cachedData) {
-                renderDashboard(cachedData);
-                refreshDashboardInBackground(CACHE_KEY);
-                return;
-            }
-            const data = await callServer('getDashboard');
+            if (cachedData) { renderDashboard(cachedData); refreshDashboardInBackground(CACHE_KEY); return; }
+            const data = await jsonp(API_URL + '?action=dashboard');
             setCache(CACHE_KEY, data);
             renderDashboard(data);
         }
 
         async function refreshDashboardInBackground(CACHE_KEY) {
             try {
-                const fresh = await callServer('getDashboard');
+                const fresh = await jsonp(API_URL + '?action=dashboard');
                 setCache(CACHE_KEY, fresh);
                 if (currentPage === 'dashboard') renderDashboard(fresh);
             } catch(e) {}
@@ -250,16 +271,189 @@
                     <button id="refreshEmployeesBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
                 </div>
                 <div class="table-card"><table id="employeesTable"><thead><tr><th>#</th><th>שם</th><th>ת.ז.</th><th>תפקיד</th><th>קורס</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody></tbody></table></div>
-                <div id="employeeModal" class="modal">…</div>`;
+                <div id="employeeModal" class="modal"><div class="modal-content">
+                    <button class="modal-close" onclick="document.getElementById('employeeModal').classList.remove('active')">&times;</button>
+                    <h3 class="text-lg font-bold mb-3" id="modalTitle">הוספת מאבטח</h3>
+                    <div class="tabs">
+                        <button class="tab active" data-tab="personal"><i class="fas fa-user"></i> פרטים</button>
+                        <button class="tab" data-tab="weapons"><i class="fas fa-gun"></i> נשקים</button>
+                        <button class="tab" data-tab="compliance"><i class="fas fa-clipboard-check"></i> כשירויות</button>
+                        <button class="tab" data-tab="documents"><i class="fas fa-folder-open"></i> אישורים</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="tab-content active" id="tab-personal">
+                            <div class="flex flex-wrap gap-4">
+                                <div class="form-group flex-1 min-w-[45%]"><label>שם מלא</label><input type="text" id="inputName"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תעודת זהות</label><input type="text" id="inputNationalId"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תפקיד</label><select id="inputLevel"><option value="שומר">שומר</option><option value="מאבטח">מאבטח</option><option value="מנהל יחידה">מנהל יחידה</option></select></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>קורס</label><select id="inputCourse"><option value="בסיס">בסיס</option><option value="א'">א'</option><option value="ב'">ב'</option><option value="א' מתקדם">א' מתקדם</option></select></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>סטטוס</label><select id="inputStatus"><option value="פעיל">פעיל</option><option value="חסום">חסום</option></select></div>
+                            </div>
+                        </div>
+                        <div class="tab-content" id="tab-weapons">
+                            <p class="text-sm opacity-70 mb-2">נשקים משויכים</p>
+                            <div class="weapon-assign-list" id="assignedWeaponsList"></div>
+                            <div class="form-group"><label>הוסף נשק</label><select id="weaponSelect" style="width:100%;"></select><button class="topbar-btn btn-small mt-2" id="addWeaponBtn"><i class="fas fa-plus"></i> שייך</button></div>
+                        </div>
+                        <div class="tab-content" id="tab-compliance">
+                            <div class="flex flex-wrap gap-4">
+                                <div class="form-group flex-1 min-w-[45%]"><label>תוקף רישיון</label><input type="date" id="inputLicense"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תוקף בדיקת בריאות</label><input type="date" id="inputMedical"></div>
+                                <div class="form-group flex-1 min-w-[45%]"><label>תוקף הדרכה</label><input type="date" id="inputTraining"></div>
+                            </div>
+                        </div>
+                        <div class="tab-content" id="tab-documents">
+                            <p class="text-sm opacity-70 mb-3">מסמכים משויכים</p>
+                            <ul class="doc-list" id="docList">
+                                <li class="doc-item"><div class="doc-info"><i class="fas fa-id-card"></i><div><div class="doc-name">רישיון נשק</div><div class="doc-date">בתוקף עד 31/12/2025</div></div></div><span class="doc-status doc-valid"><i class="fas fa-check-circle"></i> בתוקף</span></li>
+                                <li class="doc-item"><div class="doc-info"><i class="fas fa-stethoscope"></i><div><div class="doc-name">בדיקת בריאות</div><div class="doc-date">פג תוקף 01/10/2024</div></div></div><span class="doc-status doc-expired"><i class="fas fa-times-circle"></i> פג תוקף</span></li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-4 justify-end">
+                        <button class="topbar-btn px-3 py-1" style="background:#3B82F6; color:white;" id="saveEmployeeBtn">שמור</button>
+                        <button class="topbar-btn px-3 py-1" onclick="document.getElementById('employeeModal').classList.remove('active')">ביטול</button>
+                    </div>
+                </div></div>`;
             loadEmployees(false);
             bindEmployeeEvents();
         });
 
-        // ... (שאר הפונקציות: loadEmployees, bindEmployeeEvents, saveEmployee, deleteEmployee, openAddModal, editEmployee, switchTab, populateWeaponSelect, renderAssignedWeapons)
-        // (כולל ניקוי מטמון צולב ב‑save/delete)
+        let empData = { employees: [], weapons: [] };
+        let currentEditId = null, assignedWeapons = [];
+
+        async function loadEmployees(forceRefresh) {
+            const CACHE_KEY = 'employees_cache';
+            const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
+            if (cachedData) { empData = cachedData; renderEmployeesTable(); refreshEmployeesInBackground(CACHE_KEY); return; }
+            empData = await jsonp(API_URL + '?action=employeesPage');
+            setCache(CACHE_KEY, empData);
+            renderEmployeesTable();
+        }
+        async function refreshEmployeesInBackground(CACHE_KEY) {
+            try { empData = await jsonp(API_URL + '?action=employeesPage'); setCache(CACHE_KEY, empData); if (currentPage === 'employees') renderEmployeesTable(); } catch(e) {}
+        }
+        function renderEmployeesTable() {
+            const term = (document.getElementById('empSearch')?.value || '').toLowerCase();
+            const level = document.getElementById('empLevelFilter')?.value || '';
+            const filtered = empData.employees.filter(e => {
+                const matchSearch = !term || (e.name||'').toLowerCase().includes(term) || (e.national_id||'').includes(term) || (e.level||'').toLowerCase().includes(term) || (e.course||'').toLowerCase().includes(term);
+                return matchSearch && (!level || e.level === level);
+            });
+            const tbody = document.querySelector('#employeesTable tbody');
+            tbody.innerHTML = filtered.map(e => `<tr>
+                <td>${e.uid}</td><td>${e.name}</td><td>${e.national_id}</td><td>${e.level}</td><td>${e.course||''}</td>
+                <td><span class="status-badge ${e.status==='פעיל'?'status-active':'status-blocked'}">${e.status}</span></td>
+                <td>
+                    <button class="topbar-btn px-2 py-0.5" onclick="editEmployee('${e.national_id}')"><i class="fas fa-edit"></i></button>
+                    <button class="topbar-btn px-2 py-0.5" onclick="deleteEmployee('${e.national_id}')"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>`).join('');
+        }
+        function bindEmployeeEvents() {
+            document.getElementById('empSearch').addEventListener('input', renderEmployeesTable);
+            document.getElementById('empLevelFilter').addEventListener('change', renderEmployeesTable);
+            document.getElementById('addEmployeeBtn').addEventListener('click', openAddModal);
+            document.getElementById('saveEmployeeBtn').addEventListener('click', saveEmployee);
+            document.getElementById('refreshEmployeesBtn').addEventListener('click', () => loadEmployees(true));
+            document.querySelectorAll('.tab').forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tab)));
+            document.getElementById('addWeaponBtn').addEventListener('click', () => {
+                const serial = document.getElementById('weaponSelect').value;
+                if (!serial) return;
+                assignedWeapons.push(serial);
+                document.getElementById('weaponSelect').value = '';
+                renderAssignedWeapons();
+                populateWeaponSelect();
+            });
+        }
+        function openAddModal() {
+            currentEditId = null;
+            document.getElementById('modalTitle').innerText = 'הוספת מאבטח';
+            ['inputName','inputNationalId'].forEach(id => document.getElementById(id).value='');
+            document.getElementById('inputLevel').value='מאבטח';
+            document.getElementById('inputCourse').value='בסיס';
+            document.getElementById('inputStatus').value='פעיל';
+            ['inputLicense','inputMedical','inputTraining'].forEach(id => document.getElementById(id).value='');
+            assignedWeapons = [];
+            renderAssignedWeapons();
+            populateWeaponSelect();
+            document.getElementById('employeeModal').classList.add('active');
+            switchTab('personal');
+        }
+        window.editEmployee = function(nationalId) {
+            const emp = empData.employees.find(e => e.national_id == nationalId);
+            if (!emp) return;
+            currentEditId = nationalId;
+            document.getElementById('modalTitle').innerText = 'עריכת מאבטח';
+            document.getElementById('inputName').value = emp.name;
+            document.getElementById('inputNationalId').value = emp.national_id;
+            document.getElementById('inputLevel').value = emp.level;
+            document.getElementById('inputCourse').value = emp.course || 'בסיס';
+            document.getElementById('inputStatus').value = emp.status;
+            document.getElementById('inputLicense').value = emp.license_expiry || '';
+            document.getElementById('inputMedical').value = emp.medical_expiry || '';
+            document.getElementById('inputTraining').value = emp.training_expiry || '';
+            assignedWeapons = emp.weapons ? emp.weapons.split(',').map(w=>w.trim()) : [];
+            const otherAssigned = empData.employees.filter(e => e.national_id !== nationalId).flatMap(e => (e.weapons||'').split(',').map(w=>w.trim()));
+            const availableWeaponsList = empData.weapons.filter(w => !otherAssigned.includes(w.serial));
+            populateWeaponSelect(availableWeaponsList);
+            renderAssignedWeapons();
+            document.getElementById('employeeModal').classList.add('active');
+            switchTab('personal');
+        };
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tabName));
+        }
+        function populateWeaponSelect(availableList) {
+            const select = document.getElementById('weaponSelect');
+            const list = availableList || empData.weapons.filter(w => !assignedWeapons.includes(w.serial) && !empData.employees.some(e => e.weapons && e.weapons.split(',').map(x=>x.trim()).includes(w.serial)));
+            select.innerHTML = '<option value="">בחר נשק…</option>' + list.map(w => `<option value="${w.serial}">${w.serial} – ${w.type}</option>`).join('');
+        }
+        function renderAssignedWeapons() {
+            const container = document.getElementById('assignedWeaponsList');
+            if (!assignedWeapons.length) { container.innerHTML = '<p class="text-xs opacity-50">אין נשקים משויכים</p>'; return; }
+            container.innerHTML = assignedWeapons.map(s => `<div class="weapon-item"><div><i class="fas fa-gun"></i> ${s}</div><button class="topbar-btn btn-small" onclick="removeAssignedWeapon('${s}')"><i class="fas fa-times"></i></button></div>`).join('');
+        }
+        window.removeAssignedWeapon = function(serial) { assignedWeapons = assignedWeapons.filter(s => s !== serial); renderAssignedWeapons(); populateWeaponSelect(); };
+        async function saveEmployee() {
+            const name = document.getElementById('inputName').value.trim();
+            const nationalId = document.getElementById('inputNationalId').value.trim();
+            if (!name || !nationalId) return alert('שם ותעודת זהות נדרשים');
+            const data = {
+                name, national_id: nationalId,
+                level: document.getElementById('inputLevel').value,
+                course: document.getElementById('inputCourse').value,
+                status: document.getElementById('inputStatus').value,
+                license_expiry: document.getElementById('inputLicense').value,
+                medical_expiry: document.getElementById('inputMedical').value,
+                training_expiry: document.getElementById('inputTraining').value,
+                weapons: assignedWeapons.join(', ')
+            };
+            if (currentEditId) {
+                data.national_id = currentEditId;
+                postForm('update', { ...data, sheet: 'employees', national_id: currentEditId });
+            } else {
+                if (empData.employees.some(e => e.national_id == nationalId)) return alert('תעודת זהות קיימת');
+                const maxUid = Math.max(...empData.employees.map(e => e.uid||0), 0);
+                data.uid = maxUid + 1;
+                postForm('add', { ...data, sheet: 'employees' });
+            }
+            clearAllCaches();
+            setTimeout(() => { loadEmployees(true); document.getElementById('employeeModal').classList.remove('active'); }, 500);
+            showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
+        }
+        window.deleteEmployee = function(nationalId) {
+            if (confirm('למחוק?')) {
+                postForm('delete', { sheet: 'employees', national_id: nationalId });
+                clearAllCaches();
+                setTimeout(() => loadEmployees(true), 500);
+                showToast('המאבטח נמחק');
+            }
+        };
 
         // ===================== WEAPONS =====================
-        // ... (זהה לגישה של employees)
+        // (מבנה זהה – registerPage('weapons', …) עם לוגיקה דומה)
 
         // ===================== INIT =====================
         (function init() {
