@@ -117,7 +117,6 @@
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
 
-        // ===================== JSONP =====================
         function jsonp(url) {
             return new Promise((resolve, reject) => {
                 const callback = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
@@ -152,7 +151,6 @@
 
         function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
 
-        // ===================== Cache =====================
         function getCached(key, maxAge = 300000) {
             const cached = sessionStorage.getItem(key);
             if (!cached) return null;
@@ -166,7 +164,6 @@
             ['dashboard_cache','employees_cache','weapons_cache'].forEach(k => sessionStorage.removeItem(k));
         }
 
-        // ===================== SPA Engine =====================
         let currentPage = 'dashboard';
         const pageRenderers = {};
 
@@ -182,7 +179,6 @@
             item.addEventListener('click', e => { e.preventDefault(); navigateTo(item.dataset.page); });
         });
 
-        // Theme
         function setTheme(t) {
             document.body.classList.toggle('dark', t === 'dark');
             localStorage.setItem('strongfire_theme', t);
@@ -219,11 +215,7 @@
         }
 
         async function refreshDashboardInBackground(CACHE_KEY) {
-            try {
-                const fresh = await jsonp(API_URL + '?action=dashboard');
-                setCache(CACHE_KEY, fresh);
-                if (currentPage === 'dashboard') renderDashboard(fresh);
-            } catch(e) {}
+            try { const fresh = await jsonp(API_URL + '?action=dashboard'); setCache(CACHE_KEY, fresh); if (currentPage === 'dashboard') renderDashboard(fresh); } catch(e) {}
         }
 
         function renderDashboard({ employees, weapons, checkouts, alerts }) {
@@ -453,7 +445,126 @@
         };
 
         // ===================== WEAPONS =====================
-        // (מבנה זהה – registerPage('weapons', …) עם לוגיקה דומה)
+        registerPage('weapons', () => {
+            document.getElementById('mainContent').innerHTML = `
+                <h1 class="text-2xl font-bold mb-5">נשקים</h1>
+                <div class="search-bar">
+                    <input type="text" id="wepSearch" placeholder="חיפוש…">
+                    <select id="wepStatusFilter" class="topbar-btn"><option value="">כל הסטטוסים</option><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select>
+                    <button id="addWeaponBtn2" class="topbar-btn"><i class="fas fa-plus"></i> הוסף</button>
+                    <button id="refreshWeaponsBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
+                </div>
+                <div class="table-card"><table id="weaponsTable"><thead><tr><th>סיריאלי</th><th>סוג</th><th>סטטוס</th><th>מיקום</th><th>מאבטח</th><th>פעולות</th></tr></thead><tbody></tbody></table></div>
+                <div id="weaponModal" class="modal"><div class="modal-content">
+                    <button class="modal-close" onclick="document.getElementById('weaponModal').classList.remove('active')">&times;</button>
+                    <h3 class="text-lg font-bold mb-3" id="weaponModalTitle">הוספת נשק</h3>
+                    <div class="modal-body">
+                        <div class="flex flex-wrap gap-4">
+                            <div class="form-group flex-1 min-w-[45%]"><label>מספר סיריאלי</label><input type="text" id="inputSerial"></div>
+                            <div class="form-group flex-1 min-w-[45%]"><label>סוג</label><select id="inputType"><option value="רובה M16">רובה M16</option><option value="אקדח גלוק">אקדח גלוק</option><option value="רובה תבור">רובה תבור</option><option value="אקדח יריחו">אקדח יריחו</option></select></div>
+                            <div class="form-group flex-1 min-w-[45%]"><label>סטטוס</label><select id="inputWepStatus"><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select></div>
+                            <div class="form-group flex-1 min-w-[45%]"><label>מיקום</label><input type="text" id="inputLocation" value="כספת A"></div>
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-4 justify-end">
+                        <button class="topbar-btn px-3 py-1" style="background:#3B82F6; color:white;" id="saveWeaponBtn">שמור</button>
+                        <button class="topbar-btn px-3 py-1" onclick="document.getElementById('weaponModal').classList.remove('active')">ביטול</button>
+                    </div>
+                </div></div>`;
+            loadWeapons(false);
+            bindWeaponEvents();
+        });
+
+        let wepData = { weapons: [], employees: [] };
+        let currentEditSerial = null;
+
+        async function loadWeapons(forceRefresh) {
+            const CACHE_KEY = 'weapons_cache';
+            const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
+            if (cachedData) { wepData = cachedData; renderWeaponsTable(); refreshWeaponsInBackground(CACHE_KEY); return; }
+            wepData = await jsonp(API_URL + '?action=weaponsPage');
+            setCache(CACHE_KEY, wepData);
+            renderWeaponsTable();
+        }
+        async function refreshWeaponsInBackground(CACHE_KEY) {
+            try { wepData = await jsonp(API_URL + '?action=weaponsPage'); setCache(CACHE_KEY, wepData); if (currentPage === 'weapons') renderWeaponsTable(); } catch(e) {}
+        }
+        function renderWeaponsTable() {
+            const term = (document.getElementById('wepSearch')?.value || '').toLowerCase();
+            const status = document.getElementById('wepStatusFilter')?.value || '';
+            const filtered = wepData.weapons.filter(w => {
+                const matchSearch = !term || w.serial.toLowerCase().includes(term) || w.type.toLowerCase().includes(term);
+                return matchSearch && (!status || w.status === status);
+            });
+            const tbody = document.querySelector('#weaponsTable tbody');
+            tbody.innerHTML = filtered.map(w => {
+                const emp = wepData.employees.find(e => (e.weapons||'').split(',').map(x=>x.trim()).includes(w.serial));
+                const empName = emp ? `${emp.name} (${emp.national_id})` : '-';
+                const statusClass = w.status==='פנוי'?'status-available': (w.status==='משויך'?'status-assigned':'status-blocked');
+                return `<tr>
+                    <td>${w.serial}</td><td>${w.type}</td>
+                    <td><span class="status-badge ${statusClass}">${w.status}</span></td>
+                    <td>${w.location||'-'}</td><td>${empName}</td>
+                    <td>
+                        <button class="topbar-btn px-2 py-0.5" onclick="editWeapon('${w.serial}')"><i class="fas fa-edit"></i></button>
+                        <button class="topbar-btn px-2 py-0.5" onclick="deleteWeapon('${w.serial}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+        function bindWeaponEvents() {
+            document.getElementById('wepSearch').addEventListener('input', renderWeaponsTable);
+            document.getElementById('wepStatusFilter').addEventListener('change', renderWeaponsTable);
+            document.getElementById('addWeaponBtn2').addEventListener('click', openAddWeaponModal);
+            document.getElementById('saveWeaponBtn').addEventListener('click', saveWeapon);
+            document.getElementById('refreshWeaponsBtn').addEventListener('click', () => loadWeapons(true));
+        }
+        function openAddWeaponModal() {
+            currentEditSerial = null;
+            document.getElementById('weaponModalTitle').innerText = 'הוספת נשק';
+            ['inputSerial','inputLocation'].forEach(id => document.getElementById(id).value='');
+            document.getElementById('inputType').value='רובה M16';
+            document.getElementById('inputWepStatus').value='פנוי';
+            document.getElementById('weaponModal').classList.add('active');
+        }
+        window.editWeapon = function(serial) {
+            const wep = wepData.weapons.find(w => w.serial == serial);
+            if (!wep) return;
+            currentEditSerial = serial;
+            document.getElementById('weaponModalTitle').innerText = 'עריכת נשק';
+            document.getElementById('inputSerial').value = wep.serial;
+            document.getElementById('inputType').value = wep.type;
+            document.getElementById('inputWepStatus').value = wep.status;
+            document.getElementById('inputLocation').value = wep.location || '';
+            document.getElementById('weaponModal').classList.add('active');
+        };
+        async function saveWeapon() {
+            const serial = document.getElementById('inputSerial').value.trim();
+            if (!serial) return alert('מספר סיריאלי נדרש');
+            const data = {
+                serial,
+                type: document.getElementById('inputType').value,
+                status: document.getElementById('inputWepStatus').value,
+                location: document.getElementById('inputLocation').value
+            };
+            if (currentEditSerial) {
+                data.serial = currentEditSerial;
+                postForm('update', { ...data, sheet: 'weapons', serial: currentEditSerial });
+            } else {
+                postForm('add', { ...data, sheet: 'weapons' });
+            }
+            clearAllCaches();
+            setTimeout(() => { loadWeapons(true); document.getElementById('weaponModal').classList.remove('active'); }, 500);
+            showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
+        }
+        window.deleteWeapon = function(serial) {
+            if (confirm('למחוק?')) {
+                postForm('delete', { sheet: 'weapons', serial });
+                clearAllCaches();
+                setTimeout(() => loadWeapons(true), 500);
+                showToast('הנשק נמחק');
+            }
+        };
 
         // ===================== INIT =====================
         (function init() {
