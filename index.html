@@ -72,7 +72,7 @@
         .status-available { background:rgba(16,185,129,0.2); color:#10B981; } .status-assigned { background:rgba(245,158,11,0.2); color:#F59E0B; }
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100; }
         .modal.active { display:flex; }
-        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:550px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; max-height:70vh; display:flex; flex-direction:column; }
+        .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:600px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; height:480px; display:flex; flex-direction:column; }
         @keyframes slideUp { from{opacity:0;transform:translateY(20px);} to{opacity:1;transform:translateY(0);} }
         .modal-body { overflow-y:auto; flex:1; }
         .modal-close { position:absolute; top:10px; left:10px; background:none; border:none; font-size:1.2rem; cursor:pointer; color:var(--text-sidebar); transition:color 0.2s; }
@@ -94,6 +94,8 @@
         .weapon-item { display:flex; align-items:center; justify-content:space-between; padding:0.4rem 0.6rem; background:var(--bg-card); border:1px solid var(--border-color); border-radius:0.5rem; margin-bottom:0.4rem; }
         .btn-small { padding:0.25rem 0.6rem; font-size:0.75rem; border-radius:9999px; }
         .toast { position:fixed; bottom:20px; left:20px; background:#10B981; color:white; padding:0.75rem 1.25rem; border-radius:0.5rem; z-index:200; animation:slideUp 0.3s ease; box-shadow:0 4px 12px rgba(0,0,0,0.15); }
+        .doc-table { width:100%; border-collapse:collapse; }
+        .doc-table th, .doc-table td { padding:0.5rem; font-size:0.8rem; }
         @media (max-width:1024px) { .content-area { padding:16px; margin-right:0; } .sidebar { transform:translateX(100%); } .sidebar.collapsed { transform:translateX(0); } .search-bar { flex-direction: column; align-items: stretch; } .tabs { overflow-x:auto; white-space:nowrap; } }
     </style>
 </head>
@@ -295,11 +297,15 @@
                             </div>
                         </div>
                         <div class="tab-content" id="tab-documents">
-                            <p class="text-sm opacity-70 mb-3">מסמכים משויכים</p>
-                            <ul class="doc-list" id="docList">
-                                <li class="doc-item"><div class="doc-info"><i class="fas fa-id-card"></i><div><div class="doc-name">רישיון נשק</div><div class="doc-date">בתוקף עד 31/12/2025</div></div></div><span class="doc-status doc-valid"><i class="fas fa-check-circle"></i> בתוקף</span></li>
-                                <li class="doc-item"><div class="doc-info"><i class="fas fa-stethoscope"></i><div><div class="doc-name">בדיקת בריאות</div><div class="doc-date">פג תוקף 01/10/2024</div></div></div><span class="doc-status doc-expired"><i class="fas fa-times-circle"></i> פג תוקף</span></li>
-                            </ul>
+                            <p class="text-sm opacity-70 mb-2">מסמכים משויכים</p>
+                            <table class="doc-table">
+                                <thead><tr><th>סוג מסמך</th><th>תאריך תוקף</th><th>סטטוס</th></tr></thead>
+                                <tbody>
+                                    <tr><td>רישיון נשק</td><td>31/12/2025</td><td><span class="doc-valid">בתוקף</span></td></tr>
+                                    <tr><td>בדיקת בריאות</td><td>01/10/2024</td><td><span class="doc-expired">פג תוקף</span></td></tr>
+                                    <tr><td>הדרכה שנתית</td><td>11/11/2025</td><td><span class="doc-valid">בתוקף</span></td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                     <div class="flex gap-2 mt-4 justify-end">
