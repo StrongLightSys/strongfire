@@ -32,12 +32,29 @@
         }
 
         function postForm(action, data) {
+            // יצירת iframe נסתר
+            const iframe = document.createElement('iframe');
+            iframe.name = 'hiddenFrame_' + Date.now();
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+
             const form = document.createElement('form');
-            form.method = 'POST'; form.action = API_URL; form.target = '_blank'; form.style.display = 'none';
+            form.method = 'POST';
+            form.action = API_URL;
+            form.target = iframe.name;
+            form.style.display = 'none';
+
             form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
                 Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
-            document.body.appendChild(form); form.submit();
-            setTimeout(() => form.remove(), 500);
+
+            document.body.appendChild(form);
+            form.submit();
+
+            // ניקוי אחרי שליחה
+            setTimeout(() => {
+                form.remove();
+                iframe.remove();
+            }, 500);
         }
 
         function showToast(msg) {
@@ -72,7 +89,8 @@
                         if (val !== null && val !== cur) {
                             postForm('update', { sheet: 'employees', national_id: key, [col]: val });
                             showToast('עודכן – מרענן…');
-                            setTimeout(loadEmployees, 2000);
+                            // רענון אוטומטי
+                            setTimeout(loadEmployees, 2500);
                         }
                     });
                 });
