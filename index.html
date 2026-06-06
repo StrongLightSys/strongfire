@@ -203,21 +203,31 @@
             const CACHE_KEY = 'dashboard_cache';
             const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
             if (cachedData) { renderDashboard(cachedData); refreshDashboardInBackground(CACHE_KEY); return; }
-            const data = await jsonp(API_URL + '?action=dashboard');
-            if (data && data.employees) {
+            try {
+                const [employees, weapons, checkouts, alerts] = await Promise.all([
+                    jsonp(API_URL + '?action=get&sheet=employees'),
+                    jsonp(API_URL + '?action=get&sheet=weapons'),
+                    jsonp(API_URL + '?action=get&sheet=checkouts'),
+                    jsonp(API_URL + '?action=get&sheet=alerts')
+                ]);
+                const data = { employees, weapons, checkouts, alerts };
                 setCache(CACHE_KEY, data);
                 renderDashboard(data);
-            } else {
-                document.getElementById('mainContent').innerHTML = '<p style="color:red;">לא ניתן לטעון נתונים. אנא ודא שה‑API זמין.</p>';
+            } catch(e) {
+                if (!cachedData) document.getElementById('mainContent').innerHTML = '<p style="color:red;">שגיאה בטעינת נתונים.</p>';
             }
         }
         async function refreshDashboardInBackground(CACHE_KEY) {
             try {
-                const fresh = await jsonp(API_URL + '?action=dashboard');
-                if (fresh && fresh.employees) {
-                    setCache(CACHE_KEY, fresh);
-                    if (currentPage === 'dashboard') renderDashboard(fresh);
-                }
+                const [employees, weapons, checkouts, alerts] = await Promise.all([
+                    jsonp(API_URL + '?action=get&sheet=employees'),
+                    jsonp(API_URL + '?action=get&sheet=weapons'),
+                    jsonp(API_URL + '?action=get&sheet=checkouts'),
+                    jsonp(API_URL + '?action=get&sheet=alerts')
+                ]);
+                const data = { employees, weapons, checkouts, alerts };
+                setCache(CACHE_KEY, data);
+                if (currentPage === 'dashboard') renderDashboard(data);
             } catch(e) {}
         }
         function renderDashboard({ employees, weapons, checkouts, alerts }) {
@@ -324,21 +334,27 @@
             const CACHE_KEY = 'employees_cache';
             const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
             if (cachedData) { empData = cachedData; renderEmployeesTable(); refreshEmployeesInBackground(CACHE_KEY); return; }
-            const data = await jsonp(API_URL + '?action=employeesPage');
-            if (data && data.employees) {
-                empData = data;
+            try {
+                const [employees, weapons] = await Promise.all([
+                    jsonp(API_URL + '?action=get&sheet=employees'),
+                    jsonp(API_URL + '?action=get&sheet=weapons')
+                ]);
+                empData = { employees, weapons };
                 setCache(CACHE_KEY, empData);
                 renderEmployeesTable();
+            } catch(e) {
+                if (!cachedData) document.getElementById('mainContent').innerHTML = '<p style="color:red;">שגיאה בטעינת נתונים.</p>';
             }
         }
         async function refreshEmployeesInBackground(CACHE_KEY) {
             try {
-                const data = await jsonp(API_URL + '?action=employeesPage');
-                if (data && data.employees) {
-                    empData = data;
-                    setCache(CACHE_KEY, empData);
-                    if (currentPage === 'employees') renderEmployeesTable();
-                }
+                const [employees, weapons] = await Promise.all([
+                    jsonp(API_URL + '?action=get&sheet=employees'),
+                    jsonp(API_URL + '?action=get&sheet=weapons')
+                ]);
+                empData = { employees, weapons };
+                setCache(CACHE_KEY, empData);
+                if (currentPage === 'employees') renderEmployeesTable();
             } catch(e) {}
         }
         function renderEmployeesTable() {
@@ -511,21 +527,27 @@
             const CACHE_KEY = 'weapons_cache';
             const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
             if (cachedData) { wepData = cachedData; renderWeaponsTable(); refreshWeaponsInBackground(CACHE_KEY); return; }
-            const data = await jsonp(API_URL + '?action=weaponsPage');
-            if (data && data.weapons) {
-                wepData = data;
+            try {
+                const [weapons, employees] = await Promise.all([
+                    jsonp(API_URL + '?action=get&sheet=weapons'),
+                    jsonp(API_URL + '?action=get&sheet=employees')
+                ]);
+                wepData = { weapons, employees };
                 setCache(CACHE_KEY, wepData);
                 renderWeaponsTable();
+            } catch(e) {
+                if (!cachedData) document.getElementById('mainContent').innerHTML = '<p style="color:red;">שגיאה בטעינת נתונים.</p>';
             }
         }
         async function refreshWeaponsInBackground(CACHE_KEY) {
             try {
-                const data = await jsonp(API_URL + '?action=weaponsPage');
-                if (data && data.weapons) {
-                    wepData = data;
-                    setCache(CACHE_KEY, wepData);
-                    if (currentPage === 'weapons') renderWeaponsTable();
-                }
+                const [weapons, employees] = await Promise.all([
+                    jsonp(API_URL + '?action=get&sheet=weapons'),
+                    jsonp(API_URL + '?action=get&sheet=employees')
+                ]);
+                wepData = { weapons, employees };
+                setCache(CACHE_KEY, wepData);
+                if (currentPage === 'weapons') renderWeaponsTable();
             } catch(e) {}
         }
         function renderWeaponsTable() {
