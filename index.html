@@ -15,6 +15,9 @@
             --table-header-bg: #F1F5F9; --table-header-text: #1E293B; --table-row-hover: #F1F5F9;
             --sidebar-border: #E2E8F0; --sidebar-logo-color: #0F172A;
             --spinner-color: #3B82F6;
+            --badge-active-bg: rgba(16,185,129,0.2); --badge-active-text: #10B981;
+            --badge-blocked-bg: rgba(239,68,68,0.2); --badge-blocked-text: #EF4444;
+            --row-blocked-bg: rgba(239,68,68,0.03);
         }
         body.dark {
             --bg-body: #0F172A; --text-primary: #F1F5F9;
@@ -25,6 +28,9 @@
             --table-header-bg: #1E293B; --table-header-text: #CBD5E1; --table-row-hover: #334155;
             --sidebar-border: #1E293B; --sidebar-logo-color: #F1F5F9;
             --spinner-color: #60A5FA;
+            --badge-active-bg: rgba(16,185,129,0.25); --badge-active-text: #34D399;
+            --badge-blocked-bg: rgba(239,68,68,0.25); --badge-blocked-text: #FCA5A5;
+            --row-blocked-bg: rgba(239,68,68,0.08);
         }
 
         * { box-sizing: border-box; margin:0; padding:0; }
@@ -76,15 +82,8 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        .menu-item:hover {
-            background: var(--bg-sidebar-hover);
-            color: var(--text-primary);
-        }
-        .menu-item.active {
-            background: rgba(59,130,246,0.12);
-            color: #3B82F6;
-            font-weight: 600;
-        }
+        .menu-item:hover { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+        .menu-item.active { background: rgba(59,130,246,0.12); color: #3B82F6; font-weight: 600; }
         .sidebar-footer {
             padding: 1rem;
             border-top: 1px solid var(--sidebar-border);
@@ -119,8 +118,39 @@
             opacity: 0;
             transition: opacity 0.2s ease;
         }
-        .page-content.visible {
-            opacity: 1;
+        .page-content.visible { opacity: 1; }
+
+        /* ========== סרגל חיפוש ========== */
+        .search-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border-card);
+            border-radius: 1rem;
+            backdrop-filter: blur(10px);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .search-bar input {
+            flex: 1;
+            min-width: 180px;
+            border: none;
+            background: transparent;
+            padding: 0.5rem;
+            font-size: 0.95rem;
+            color: var(--text-primary);
+            outline: none;
+        }
+        .search-bar select {
+            background: var(--bg-topbar-btn);
+            color: var(--text-topbar-btn);
+            border: none;
+            padding: 0.35rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            cursor: pointer;
         }
 
         /* ========== טבלה ========== */
@@ -145,17 +175,26 @@
             color: var(--table-header-text);
             font-weight: 600;
         }
-        tbody tr:hover {
-            background: var(--table-row-hover);
-        }
+        tbody tr:hover { background: var(--table-row-hover); }
         td[data-editable] {
             cursor: pointer;
             background: rgba(59,130,246,0.08);
             transition: background 0.2s;
         }
-        td[data-editable]:hover {
-            background: rgba(59,130,246,0.18);
+        td[data-editable]:hover { background: rgba(59,130,246,0.18); }
+
+        /* ========== Badges ========== */
+        .status-badge {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
         }
+        .status-active { background: var(--badge-active-bg); color: var(--badge-active-text); }
+        .status-blocked { background: var(--badge-blocked-bg); color: var(--badge-blocked-text); }
+        tr.row-blocked { background: var(--row-blocked-bg); }
 
         /* ========== כפתורים ========== */
         .btn {
@@ -174,7 +213,6 @@
         .btn:hover { opacity: 0.8; }
         .btn-primary { background: #3B82F6; color: #fff; }
 
-        /* ========== ספינר ========== */
         .spinner {
             display: inline-block;
             width: 20px; height: 20px;
@@ -204,9 +242,7 @@
 
     <!-- ========== SIDEBAR ========== -->
     <aside class="sidebar" id="sidebar">
-        <div class="sidebar-logo">
-            <span>🔰 StrongFire</span>
-        </div>
+        <div class="sidebar-logo"><span>🔰 StrongFire</span></div>
         <nav class="sidebar-nav">
             <a class="menu-item" data-page="dashboard">📊 לוח בקרה</a>
             <a class="menu-item active" data-page="employees">👥 מאבטחים</a>
@@ -218,17 +254,15 @@
     </aside>
 
     <!-- ========== תוכן ראשי ========== -->
-    <div class="content-area" id="mainContent">
-        <!-- דפים יוכנסו דינמית -->
-    </div>
+    <div class="content-area" id="mainContent"></div>
 
     <script>
         (function() {
             const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
-            const CACHE_KEY = 'employees_cache';
-            const CACHE_MAX_AGE = 300000; // 5 דקות
+            const EMPLOYEES_CACHE_KEY = 'employees_cache';
+            const WEAPONS_CACHE_KEY = 'weapons_cache';
+            const CACHE_MAX_AGE = 300000;
 
-            // ========== שירות API ==========
             const apiService = {
                 jsonp(url) {
                     return new Promise((resolve, reject) => {
@@ -246,10 +280,7 @@
                     iframe.style.display = 'none';
                     document.body.appendChild(iframe);
                     const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = API_URL;
-                    form.target = iframe.name;
-                    form.style.display = 'none';
+                    form.method = 'POST'; form.action = API_URL; form.target = iframe.name; form.style.display = 'none';
                     form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
                         Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
                     document.body.appendChild(form);
@@ -258,10 +289,9 @@
                 }
             };
 
-            // ========== שירות מטמון ==========
             const cacheService = {
-                get() {
-                    const cached = sessionStorage.getItem(CACHE_KEY);
+                get(key) {
+                    const cached = sessionStorage.getItem(key);
                     if (!cached) return null;
                     try {
                         const { data, timestamp } = JSON.parse(cached);
@@ -269,17 +299,17 @@
                     } catch(e) {}
                     return null;
                 },
-                set(data) {
-                    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+                set(key, data) {
+                    sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
                 },
-                clear() {
-                    sessionStorage.removeItem(CACHE_KEY);
+                clear(key) {
+                    sessionStorage.removeItem(key);
                 }
             };
 
-            // ========== מצב גלובלי ==========
             const state = {
                 employees: [],
+                weapons: [],
                 isLoading: false,
                 error: null
             };
@@ -298,200 +328,232 @@
                 document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
             }
 
-            // ========== טעינת נתונים (ללא רנדר) ==========
-            async function fetchFromServer() {
+            // ================== עובדים ==================
+            async function fetchEmployeesFromServer() {
                 state.isLoading = true;
                 try {
                     const employees = await apiService.jsonp(API_URL + '?action=get&sheet=employees');
-                    if (!employees || !Array.isArray(employees)) throw new Error('תשובה לא תקינה מהשרת');
-                    state.employees = employees;
-                    state.error = null;
-                    cacheService.set(employees);
+                    if (!employees || !Array.isArray(employees)) throw new Error('תשובה לא תקינה');
+                    state.employees = employees; state.error = null;
+                    cacheService.set(EMPLOYEES_CACHE_KEY, employees);
                 } catch(e) {
                     state.error = e.message;
-                    const cached = cacheService.get();
-                    if (cached) {
-                        state.employees = cached;
-                        state.error = null;
-                        showToast('הוצגו נתונים מהמטמון (ללא חיבור)');
-                    }
-                } finally {
-                    state.isLoading = false;
-                }
+                    const cached = cacheService.get(EMPLOYEES_CACHE_KEY);
+                    if (cached) { state.employees = cached; state.error = null; showToast('מטמון'); }
+                } finally { state.isLoading = false; }
             }
 
-            async function loadData(forceRefresh = false) {
-                const cached = cacheService.get();
+            async function loadEmployeesData(forceRefresh = false) {
+                const cached = cacheService.get(EMPLOYEES_CACHE_KEY);
                 if (!forceRefresh && cached) {
                     state.employees = cached;
-                    // רענון שקט ברקע
-                    fetchFromServer().then(() => {
-                        if (state.error === null && currentPage === 'employees') {
-                            renderEmployeesPage();
-                        }
-                    });
+                    fetchEmployeesFromServer().then(() => { if (!state.error && currentPage === 'employees') renderEmployeesPage(); });
                     return;
                 }
-                await fetchFromServer();
+                await fetchEmployeesFromServer();
             }
 
-            // ========== דף עובדים ==========
             function renderEmployeesPage() {
-                const contentEl = document.getElementById('mainContent');
-                if (!contentEl) return;
+                const c = document.getElementById('mainContent');
+                let html = '<div class="page-content"><h1 style="font-size:1.5rem;font-weight:bold;margin-bottom:1rem;">👥 מאבטחים</h1>';
 
-                let html = '<div class="page-content">';
-                html += '<h1 style="font-size:1.5rem; font-weight:bold; margin-bottom:1rem;">👥 מאבטחים</h1>';
-
-                if (state.isLoading) {
-                    html += '<div style="display:flex; align-items:center; gap:0.5rem;"><span class="spinner"></span> טוען נתונים...</div>';
-                } else {
-                    html += '<button id="refreshBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>';
-                    html += '<div id="error-message" style="display:none;"></div>';
-                    html += '<div id="employeesTableContainer"></div>';
-                }
+                // סרגל חיפוש + סינון
+                html += `
+                    <div class="search-bar">
+                        <input type="text" id="empSearch" placeholder="חיפוש לפי שם, ת.ז., תפקיד...">
+                        <select id="empLevelFilter">
+                            <option value="">כל התפקידים</option>
+                            <option value="שומר">שומר</option>
+                            <option value="מאבטח">מאבטח</option>
+                            <option value="מנהל יחידה">מנהל יחידה</option>
+                        </select>
+                        <button id="refreshEmployeesBtn" class="btn btn-primary">🔄 רענן</button>
+                    </div>
+                    <div id="error-message" style="display:none;"></div>
+                    <div id="employeesTableContainer"></div>
+                `;
                 html += '</div>';
-                contentEl.innerHTML = html;
-
-                // הפעל אנימציה
-                requestAnimationFrame(() => {
-                    const page = contentEl.querySelector('.page-content');
-                    if (page) page.classList.add('visible');
-                });
+                c.innerHTML = html;
+                requestAnimationFrame(() => { const p = c.querySelector('.page-content'); if (p) p.classList.add('visible'); });
 
                 if (state.isLoading) return;
 
-                const tableContainer = document.getElementById('employeesTableContainer');
-                const errorEl = document.getElementById('error-message');
-                if (!tableContainer) return;
+                const t = document.getElementById('employeesTableContainer'), err = document.getElementById('error-message');
+                if (!t) return;
+                if (state.error && !state.employees.length) { err.style.display='block'; err.textContent='שגיאה: '+state.error; return; }
+                err.style.display='none';
+                if (!state.employees.length) { t.innerHTML='<p>אין נתונים.</p>'; return; }
 
-                if (state.error && state.employees.length === 0) {
-                    errorEl.style.display = 'block';
-                    errorEl.textContent = 'שגיאה בטעינת נתונים: ' + state.error;
-                    return;
+                // פילטור
+                const searchTerm = document.getElementById('empSearch')?.value?.toLowerCase() || '';
+                const levelFilter = document.getElementById('empLevelFilter')?.value || '';
+                let filtered = state.employees;
+                if (searchTerm) {
+                    filtered = filtered.filter(emp =>
+                        (emp.name||'').toLowerCase().includes(searchTerm) ||
+                        (emp.national_id||'').includes(searchTerm) ||
+                        (emp.level||'').toLowerCase().includes(searchTerm) ||
+                        (emp.course||'').toLowerCase().includes(searchTerm)
+                    );
                 }
-                errorEl.style.display = 'none';
-
-                if (!state.employees.length) {
-                    tableContainer.innerHTML = '<p>אין נתונים.</p>';
-                    return;
+                if (levelFilter) {
+                    filtered = filtered.filter(emp => emp.level === levelFilter);
                 }
 
-                const headers = Object.keys(state.employees[0]);
+                if (!filtered.length) { t.innerHTML='<p>אין תוצאות מתאימות.</p>'; return; }
+
+                const headers = Object.keys(state.employees[0]); // כל העמודות מהגיליון
                 let tableHtml = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-                state.employees.forEach(row => {
-                    tableHtml += '<tr>';
-                    headers.forEach(h => {
-                        const raw = row[h] !== undefined ? row[h] : '';
-                        const display = formatDisplay(raw, h);
-                        const editable = (h === 'uid') ? '0' : '1';
-                        tableHtml += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}">${display}</td>`;
+                filtered.forEach(row => {
+                    const isBlocked = row.status === 'חסום';
+                    tableHtml += `<tr class="${isBlocked ? 'row-blocked' : ''}">`;
+                    headers.forEach(col => {
+                        const raw = row[col] !== undefined ? row[col] : '';
+                        if (col === 'status') {
+                            // Badge צבעוני
+                            tableHtml += `<td data-editable="1" data-col="status" data-key="${row['national_id']}" data-current="${raw}">
+                                <span class="status-badge ${isBlocked ? 'status-blocked' : 'status-active'}">${raw}</span>
+                            </td>`;
+                        } else {
+                            const editable = (col === 'uid') ? '0' : '1';
+                            const display = formatDisplay(raw, col);
+                            tableHtml += `<td data-editable="${editable}" data-col="${col}" data-key="${row['national_id']}" data-current="${raw}">${display}</td>`;
+                        }
                     });
                     tableHtml += '</tr>';
                 });
                 tableHtml += '</tbody></table>';
-                tableContainer.innerHTML = tableHtml;
+                t.innerHTML = tableHtml;
 
-                // כפתור רענון
-                const refreshBtn = document.getElementById('refreshBtn');
-                if (refreshBtn) {
-                    refreshBtn.addEventListener('click', () => {
-                        cacheService.clear();
-                        loadData(true).then(() => renderEmployeesPage());
-                    });
-                }
+                // מאזינים
+                document.getElementById('empSearch')?.addEventListener('input', renderEmployeesPage);
+                document.getElementById('empLevelFilter')?.addEventListener('change', renderEmployeesPage);
+                document.getElementById('refreshEmployeesBtn')?.addEventListener('click', () => {
+                    cacheService.clear(EMPLOYEES_CACHE_KEY);
+                    loadEmployeesData(true).then(renderEmployeesPage);
+                });
             }
 
-            // ========== עריכת תאים (Event Delegation) ==========
-            document.getElementById('mainContent').addEventListener('click', function(e) {
+            // ================== נשקים ==================
+            // (זהה לגרסה הקודמת, ללא שינוי)
+            async function fetchWeaponsFromServer() {
+                state.isLoading = true;
+                try {
+                    const weapons = await apiService.jsonp(API_URL + '?action=get&sheet=weapons');
+                    if (!weapons || !Array.isArray(weapons)) throw new Error('תשובה לא תקינה');
+                    state.weapons = weapons; state.error = null;
+                    cacheService.set(WEAPONS_CACHE_KEY, weapons);
+                } catch(e) {
+                    state.error = e.message;
+                    const cached = cacheService.get(WEAPONS_CACHE_KEY);
+                    if (cached) { state.weapons = cached; state.error = null; showToast('מטמון'); }
+                } finally { state.isLoading = false; }
+            }
+
+            async function loadWeaponsData(forceRefresh = false) {
+                const cached = cacheService.get(WEAPONS_CACHE_KEY);
+                if (!forceRefresh && cached) {
+                    state.weapons = cached;
+                    fetchWeaponsFromServer().then(() => { if (!state.error && currentPage === 'weapons') renderWeaponsPage(); });
+                    return;
+                }
+                await fetchWeaponsFromServer();
+            }
+
+            function renderWeaponsPage() {
+                const c = document.getElementById('mainContent');
+                let html = '<div class="page-content"><h1 style="font-size:1.5rem;font-weight:bold;margin-bottom:1rem;">🔫 נשקים</h1>';
+                if (state.isLoading) html += '<div style="display:flex;align-items:center;gap:0.5rem;"><span class="spinner"></span> טוען...</div>';
+                else {
+                    html += '<button id="refreshWeaponsBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>';
+                    html += '<div id="error-message" style="display:none;"></div><div id="weaponsTableContainer"></div>';
+                }
+                html += '</div>';
+                c.innerHTML = html;
+                requestAnimationFrame(() => { const p = c.querySelector('.page-content'); if (p) p.classList.add('visible'); });
+                if (state.isLoading) return;
+                const t = document.getElementById('weaponsTableContainer'), err = document.getElementById('error-message');
+                if (!t) return;
+                if (state.error && !state.weapons.length) { err.style.display='block'; err.textContent='שגיאה: '+state.error; return; }
+                err.style.display='none';
+                if (!state.weapons.length) { t.innerHTML='<p>אין נתונים.</p>'; return; }
+                const headers = Object.keys(state.weapons[0]);
+                let h = '<table><thead><tr>'+headers.map(x=>`<th>${x}</th>`).join('')+'</tr></thead><tbody>';
+                state.weapons.forEach(row=>{
+                    h+='<tr>';
+                    headers.forEach(col=>{
+                        const raw=row[col]!==undefined?row[col]:'', dis=formatDisplay(raw,col), editable=(col==='serial')?'0':'1';
+                        h+=`<td data-editable="${editable}" data-col="${col}" data-key="${row['serial']}" data-current="${raw}">${dis}</td>`;
+                    });
+                    h+='</tr>';
+                });
+                h+='</tbody></table>';
+                t.innerHTML=h;
+                document.getElementById('refreshWeaponsBtn').addEventListener('click',()=>{cacheService.clear(WEAPONS_CACHE_KEY);loadWeaponsData(true).then(renderWeaponsPage);});
+            }
+
+            // ================== עריכה ==================
+            document.getElementById('mainContent').addEventListener('click',function(e) {
                 const td = e.target.closest('td[data-editable="1"]');
                 if (!td) return;
-
-                const col = td.dataset.col;
-                const key = td.dataset.key;
-                const cur = td.dataset.current;
+                const col = td.dataset.col, key = td.dataset.key, cur = td.dataset.current;
                 const val = prompt('ערוך ' + col, cur);
                 if (val !== null && val !== cur) {
-                    // עדכון אופטימי
                     td.dataset.current = val;
-                    td.textContent = formatDisplay(val, col);
-
-                    // עדכון state
-                    const employee = state.employees.find(emp => emp.national_id == key);
-                    if (employee) {
-                        employee[col] = val;
+                    td.textContent = formatDisplay(val, col); // יוצג זמנית, הרענון יחזיר badge
+                    const inEmp = !!td.closest('#employeesTableContainer'), inWep = !!td.closest('#weaponsTableContainer');
+                    if (inEmp) {
+                        const emp = state.employees.find(e => e.national_id == key);
+                        if (emp) emp[col] = val;
+                    } else if (inWep) {
+                        const wep = state.weapons.find(w => w.serial == key);
+                        if (wep) wep[col] = val;
                     }
-
-                    // שליחה לשרת
-                    const payload = { sheet: 'employees', [col]: val };
-                    if (col === 'national_id') {
-                        payload.old_national_id = key;
-                        payload.new_national_id = val;
-                    } else {
-                        payload.national_id = key;
+                    const payload = {};
+                    if (inEmp) {
+                        payload.sheet = 'employees';
+                        if (col === 'national_id') { payload.old_national_id = key; payload.new_national_id = val; payload.national_id = val; }
+                        else payload.national_id = key;
+                    } else if (inWep) {
+                        payload.sheet = 'weapons';
+                        if (col === 'serial') { payload.old_serial = key; payload.new_serial = val; payload.serial = val; }
+                        else payload.serial = key;
                     }
+                    payload[col] = val;
                     apiService.postForm('update', payload);
                     showToast('עודכן');
-
-                    // רענון שקט
                     setTimeout(() => {
-                        loadData(true).then(() => renderEmployeesPage());
+                        if (inEmp) loadEmployeesData(true).then(renderEmployeesPage);
+                        else if (inWep) loadWeaponsData(true).then(renderWeaponsPage);
                     }, 3000);
                 }
             });
 
-            // ========== ניווט ==========
+            // ================== ניווט ==================
             let currentPage = sessionStorage.getItem('strongfire_currentPage') || 'employees';
             const pageRenderers = {
-                dashboard: () => {
-                    const c = document.getElementById('mainContent');
-                    c.innerHTML = '<div class="page-content visible"><h1>📊 לוח בקרה</h1><p>בקרוב...</p></div>';
-                },
-                employees: renderEmployeesPage,
-                weapons: () => {
-                    const c = document.getElementById('mainContent');
-                    c.innerHTML = '<div class="page-content visible"><h1>🔫 נשקים</h1><p>בקרוב...</p></div>';
-                }
+                dashboard: () => document.getElementById('mainContent').innerHTML = '<div class="page-content visible"><h1>📊 לוח בקרה</h1><p>בקרוב...</p></div>',
+                employees: () => { if (!state.employees.length) loadEmployeesData(false).then(renderEmployeesPage); else renderEmployeesPage(); },
+                weapons: () => { if (!state.weapons.length) loadWeaponsData(false).then(renderWeaponsPage); else renderWeaponsPage(); }
             };
-
             function navigateTo(page) {
-                currentPage = page;
-                sessionStorage.setItem('strongfire_currentPage', page);
+                currentPage = page; sessionStorage.setItem('strongfire_currentPage', page);
                 document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-                const activeMenu = document.querySelector(`.menu-item[data-page="${page}"]`);
-                if (activeMenu) activeMenu.classList.add('active');
+                const active = document.querySelector(`.menu-item[data-page="${page}"]`);
+                if (active) active.classList.add('active');
                 if (pageRenderers[page]) pageRenderers[page]();
             }
-
-            document.querySelectorAll('.menu-item[data-page]').forEach(item => {
-                item.addEventListener('click', e => {
-                    e.preventDefault();
-                    navigateTo(item.dataset.page);
-                });
-            });
-
-            // ========== מצב כהה/בהיר ==========
+            document.querySelectorAll('.menu-item[data-page]').forEach(item => item.addEventListener('click', e => { e.preventDefault(); navigateTo(item.dataset.page); }));
             function setTheme(t) {
-                document.body.classList.toggle('dark', t === 'dark');
+                document.body.classList.toggle('dark', t==='dark');
                 localStorage.setItem('strongfire_theme', t);
-                const btn = document.getElementById('themeToggleSide');
-                if (btn) {
-                    btn.innerHTML = t === 'dark' ? '☀️ מצב בהיר' : '🌙 מצב כהה';
-                }
+                document.getElementById('themeToggleSide').innerHTML = t==='dark' ? '☀️ מצב בהיר' : '🌙 מצב כהה';
             }
-            document.getElementById('themeToggleSide').addEventListener('click', () => {
-                const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
-                setTheme(newTheme);
-            });
+            document.getElementById('themeToggleSide').addEventListener('click',() => setTheme(document.body.classList.contains('dark')?'light':'dark'));
+            setTheme(localStorage.getItem('strongfire_theme')||'dark');
 
-            // ========== אתחול ==========
-            const savedTheme = localStorage.getItem('strongfire_theme') || 'dark';
-            setTheme(savedTheme);
-
-            // טעינת נתונים לפני הניווט
-            loadData(false).then(() => {
-                navigateTo(currentPage);
-            });
+            // אתחול
+            Promise.all([loadEmployeesData(false), loadWeaponsData(false)]).then(() => navigateTo(currentPage));
         })();
     </script>
 </body>
