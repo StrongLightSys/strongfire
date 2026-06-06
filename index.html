@@ -18,7 +18,7 @@
     <div id="content">טוען…</div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzr3vECuRmP90T8ZWauWfBDg4IIhrjUfDmeRg9V6w5sXQoCBMx-v4ccigS_7OC6XKAt/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
 
         function jsonp(url) {
             return new Promise((resolve, reject) => {
@@ -26,24 +26,17 @@
                 const script = document.createElement('script');
                 window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
                 script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
-                script.onerror = () => { delete window[callback]; script.remove(); reject('JSONP error'); };
+                script.onerror = () => { delete window[callback]; script.remove(); reject(new Error('JSONP error')); };
                 document.body.appendChild(script);
             });
         }
 
         function postForm(action, data) {
             const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = API_URL;
-            form.target = '_blank';
-            form.style.display = 'none';
-            form.innerHTML = `
-                <input name="action" value="${action}">
-                <input name="sheet" value="${data.sheet || 'employees'}">
-                ${Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('')}
-            `;
-            document.body.appendChild(form);
-            form.submit();
+            form.method = 'POST'; form.action = API_URL; form.target = '_blank'; form.style.display = 'none';
+            form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
+                Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
+            document.body.appendChild(form); form.submit();
             setTimeout(() => form.remove(), 500);
         }
 
@@ -78,7 +71,7 @@
                         const val = prompt('ערוך ' + col, cur);
                         if (val !== null && val !== cur) {
                             postForm('update', { sheet: 'employees', national_id: key, [col]: val });
-                            showToast('עודכן – רענן בעוד שניה');
+                            showToast('עודכן – מרענן…');
                             setTimeout(loadEmployees, 2000);
                         }
                     });
