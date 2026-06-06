@@ -298,7 +298,7 @@
                 document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
             }
 
-            // ========== טעינת נתונים ==========
+            // ========== טעינת נתונים (ללא רנדר) ==========
             async function fetchFromServer() {
                 state.isLoading = true;
                 try {
@@ -324,14 +324,15 @@
                 const cached = cacheService.get();
                 if (!forceRefresh && cached) {
                     state.employees = cached;
-                    renderEmployeesPage();
+                    // רענון שקט ברקע
                     fetchFromServer().then(() => {
-                        if (state.error === null) renderEmployeesPage();
+                        if (state.error === null && currentPage === 'employees') {
+                            renderEmployeesPage();
+                        }
                     });
                     return;
                 }
                 await fetchFromServer();
-                renderEmployeesPage();
             }
 
             // ========== דף עובדים ==========
@@ -358,7 +359,7 @@
                     if (page) page.classList.add('visible');
                 });
 
-                if (state.isLoading) return; // הספינר ימשיך להסתובב, רענון יגיע כשהנתונים יגיעו
+                if (state.isLoading) return;
 
                 const tableContainer = document.getElementById('employeesTableContainer');
                 const errorEl = document.getElementById('error-message');
@@ -396,7 +397,7 @@
                 if (refreshBtn) {
                     refreshBtn.addEventListener('click', () => {
                         cacheService.clear();
-                        loadData(true);
+                        loadData(true).then(() => renderEmployeesPage());
                     });
                 }
             }
@@ -434,7 +435,7 @@
 
                     // רענון שקט
                     setTimeout(() => {
-                        loadData(true);
+                        loadData(true).then(() => renderEmployeesPage());
                     }, 3000);
                 }
             });
@@ -486,7 +487,11 @@
             // ========== אתחול ==========
             const savedTheme = localStorage.getItem('strongfire_theme') || 'dark';
             setTheme(savedTheme);
-            navigateTo(currentPage);
+
+            // טעינת נתונים לפני הניווט
+            loadData(false).then(() => {
+                navigateTo(currentPage);
+            });
         })();
     </script>
 </body>
