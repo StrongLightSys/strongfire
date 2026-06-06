@@ -21,6 +21,7 @@
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
 
+        // ---------- JSONP לקריאה ----------
         function jsonp(url) {
             return new Promise((resolve, reject) => {
                 const callback = 'cb_' + Date.now();
@@ -32,6 +33,7 @@
             });
         }
 
+        // ---------- POST דרך iframe ----------
         function postForm(action, data) {
             const iframe = document.createElement('iframe');
             iframe.name = 'hf_' + Date.now();
@@ -58,6 +60,7 @@
             document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
         }
 
+        // הצגת תאריכים בפורמט ישראלי
         function formatDisplay(val, col) {
             if (!val) return '';
             if (col.includes('expiry') || col.includes('date')) {
@@ -69,7 +72,6 @@
             return val;
         }
 
-        // ---- אחסון נתונים זמני לעדכון אופטימי ----
         let currentEmployees = [];
 
         async function loadEmployees() {
@@ -94,7 +96,7 @@
                 headers.forEach(h => {
                     const raw = row[h] !== undefined ? row[h] : '';
                     const display = formatDisplay(raw, h);
-                    // רק uid לא ניתן לעריכה
+                    // ** רק uid אינו ניתן לעריכה **
                     const editable = (h === 'uid') ? '0' : '1';
                     html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}" data-display="${display}">${display}</td>`;
                 });
@@ -109,19 +111,18 @@
             document.querySelectorAll('td[data-editable="1"]').forEach(td => {
                 td.addEventListener('click', async () => {
                     const col = td.dataset.col;
-                    const key = td.dataset.key;          // national_id הישן
-                    const cur = td.dataset.current;      // raw value
+                    const key = td.dataset.key;          // national_id הנוכחי (הישן)
+                    const cur = td.dataset.current;
                     const val = prompt('ערוך ' + col, cur);
                     if (val !== null && val !== cur) {
-                        // ---- עדכון אופטימי ----
+                        // עדכון אופטימי ב־DOM
                         td.dataset.current = val;
                         td.dataset.display = formatDisplay(val, col);
                         td.textContent = formatDisplay(val, col);
 
-                        // ---- שליחה לשרת ----
+                        // הכנת המטען לשרת
                         const payload = { sheet: 'employees', [col]: val };
                         if (col === 'national_id') {
-                            // שינוי מפתח – שולחים את הישן והחדש
                             payload.old_national_id = key;
                             payload.new_national_id = val;
                         } else {
@@ -130,7 +131,7 @@
                         postForm('update', payload);
                         showToast('עודכן');
 
-                        // ---- רענון מהשרת (שקט) ----
+                        // רענון שקט מהשרת
                         setTimeout(async () => {
                             await loadEmployees();
                         }, 3000);
