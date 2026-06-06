@@ -2,21 +2,27 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>StrongFire – עובדים</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StrongFire – מערכת ניהול</title>
     <style>
+        /* ========== משתני צבע ========== */
         :root {
             --bg-body: #F8FAFC; --text-primary: #0F172A;
             --bg-card: rgba(255,255,255,0.85); --card-shadow: 0 4px 16px rgba(0,0,0,0.04);
             --border-color: #E2E8F0; --border-card: rgba(226,232,240,0.6);
+            --bg-sidebar: #FFFFFF; --text-sidebar: #475569; --bg-sidebar-hover: #F1F5F9;
             --bg-topbar-btn: #E2E8F0; --text-topbar-btn: #0F172A;
             --table-header-bg: #F1F5F9; --table-header-text: #1E293B; --table-row-hover: #F1F5F9;
+            --sidebar-border: #E2E8F0; --sidebar-logo-color: #0F172A;
         }
         body.dark {
             --bg-body: #0F172A; --text-primary: #F1F5F9;
             --bg-card: rgba(30,41,59,0.8); --card-shadow: 0 4px 16px rgba(0,0,0,0.3);
             --border-color: #334155; --border-card: rgba(51,65,85,0.5);
+            --bg-sidebar: #0F172A; --text-sidebar: #CBD5E1; --bg-sidebar-hover: rgba(51,65,85,0.45);
             --bg-topbar-btn: #334155; --text-topbar-btn: #F1F5F9;
             --table-header-bg: #1E293B; --table-header-text: #CBD5E1; --table-row-hover: #334155;
+            --sidebar-border: #1E293B; --sidebar-logo-color: #F1F5F9;
         }
 
         * { box-sizing: border-box; margin:0; padding:0; }
@@ -25,9 +31,88 @@
             background: var(--bg-body);
             color: var(--text-primary);
             transition: background 0.3s, color 0.2s;
-            padding: 2rem;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
         }
 
+        /* ========== Sidebar ========== */
+        .sidebar {
+            width: 220px;
+            background: var(--bg-sidebar);
+            border-left: 1px solid var(--sidebar-border);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            transition: transform 0.3s;
+        }
+        .sidebar-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1.5rem 1.5rem 2.25rem;
+            color: var(--sidebar-logo-color);
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+        .sidebar-logo span { font-size: 1.1rem; }
+        .sidebar-nav {
+            flex: 1;
+            padding: 0.5rem 0.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+        .menu-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.7rem 1rem;
+            border-radius: 0.5rem;
+            color: var(--text-sidebar);
+            font-size: 0.95rem;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .menu-item:hover {
+            background: var(--bg-sidebar-hover);
+            color: var(--text-primary);
+        }
+        .menu-item.active {
+            background: rgba(59,130,246,0.12);
+            color: #3B82F6;
+            font-weight: 600;
+        }
+        .sidebar-footer {
+            padding: 1rem;
+            border-top: 1px solid var(--sidebar-border);
+            margin-top: auto;
+        }
+        .theme-toggle-btn {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.65rem 1rem;
+            border-radius: 0.5rem;
+            background: var(--bg-topbar-btn);
+            color: var(--text-topbar-btn);
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        /* ========== תוכן ראשי ========== */
+        .content-area {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            height: 100vh;
+        }
+
+        /* ========== טבלה ========== */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -61,6 +146,7 @@
             background: rgba(59,130,246,0.18);
         }
 
+        /* ========== כפתורים ========== */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -90,16 +176,32 @@
     </style>
 </head>
 <body>
-    <h1>StrongFire – עובדים</h1>
-    <button id="refreshBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>
-    <div id="error-message" style="display:none;"></div>
-    <div id="content">טוען…</div>
+
+    <!-- ========== SIDEBAR ========== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+            <span>🔰 StrongFire</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a class="menu-item" data-page="dashboard">📊 לוח בקרה</a>
+            <a class="menu-item active" data-page="employees">👥 מאבטחים</a>
+            <a class="menu-item" data-page="weapons">🔫 נשקים</a>
+        </nav>
+        <div class="sidebar-footer">
+            <button id="themeToggleSide" class="theme-toggle-btn">🌙 מצב כהה</button>
+        </div>
+    </aside>
+
+    <!-- ========== תוכן ראשי ========== -->
+    <div class="content-area" id="mainContent">
+        <!-- דפים יוכנסו לכאן דינמית -->
+    </div>
 
     <script>
         (function() {
             const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
             const CACHE_KEY = 'employees_cache';
-            const CACHE_MAX_AGE = 300000; // 5 דקות
+            const CACHE_MAX_AGE = 300000;
 
             // ========== מצב גלובלי ==========
             const state = {
@@ -125,19 +227,15 @@
                 iframe.name = 'hf_' + Date.now();
                 iframe.style.display = 'none';
                 document.body.appendChild(iframe);
-
                 const form = document.createElement('form');
                 form.method = 'POST';
                 form.action = API_URL;
                 form.target = iframe.name;
                 form.style.display = 'none';
-
                 form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
                     Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
-
                 document.body.appendChild(form);
                 form.submit();
-
                 setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
             }
 
@@ -183,7 +281,6 @@
                     setCache(employees);
                 } catch(e) {
                     state.error = e.message;
-                    // נסה לטעון ממטמון במקרה של כשל
                     const cached = getCached();
                     if (cached) {
                         state.employees = cached;
@@ -199,75 +296,83 @@
                 const cached = getCached();
                 if (!forceRefresh && cached) {
                     state.employees = cached;
-                    render();
-                    // רענון שקט
+                    renderEmployeesPage();
                     fetchFromServer().then(() => {
-                        if (state.error === null) render();
+                        if (state.error === null) renderEmployeesPage();
                     });
                     return;
                 }
                 await fetchFromServer();
-                render();
+                renderEmployeesPage();
             }
 
-            // ========== תצוגה ==========
-            function render() {
-                const contentEl = document.getElementById('content');
+            // ========== תצוגת דף עובדים ==========
+            function renderEmployeesPage() {
+                const contentEl = document.getElementById('mainContent');
+                if (!contentEl) return;
+
+                let html = '<h1 class="text-2xl font-bold mb-5">מאבטחים</h1>';
+                html += '<button id="refreshBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>';
+                html += '<div id="error-message" style="display:none;"></div>';
+                html += '<div id="employeesTableContainer"></div>';
+
+                contentEl.innerHTML = html;
+
+                const tableContainer = document.getElementById('employeesTableContainer');
                 const errorEl = document.getElementById('error-message');
 
                 if (state.error && state.employees.length === 0) {
                     errorEl.style.display = 'block';
                     errorEl.textContent = 'שגיאה בטעינת נתונים: ' + state.error;
-                    contentEl.innerHTML = '';
                     return;
                 }
                 errorEl.style.display = 'none';
 
                 if (!state.employees.length) {
-                    contentEl.innerHTML = '<p>אין נתונים.</p>';
+                    tableContainer.innerHTML = '<p>אין נתונים.</p>';
                     return;
                 }
 
                 const headers = Object.keys(state.employees[0]);
-                let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+                let tableHtml = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
                 state.employees.forEach(row => {
-                    html += '<tr>';
+                    tableHtml += '<tr>';
                     headers.forEach(h => {
                         const raw = row[h] !== undefined ? row[h] : '';
                         const display = formatDisplay(raw, h);
                         const editable = (h === 'uid') ? '0' : '1';
-                        html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}">${display}</td>`;
+                        tableHtml += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}">${display}</td>`;
                     });
-                    html += '</tr>';
+                    tableHtml += '</tr>';
                 });
-                html += '</tbody></table>';
-                contentEl.innerHTML = html;
+                tableHtml += '</tbody></table>';
+                tableContainer.innerHTML = tableHtml;
+
+                // כפתור רענון
+                document.getElementById('refreshBtn').addEventListener('click', () => {
+                    clearCache();
+                    loadData(true);
+                });
             }
 
             // ========== עריכת תאים (Event Delegation) ==========
-            document.getElementById('content').addEventListener('click', function(e) {
+            document.getElementById('mainContent').addEventListener('click', function(e) {
                 const td = e.target.closest('td[data-editable="1"]');
                 if (!td) return;
 
                 const col = td.dataset.col;
-                const key = td.dataset.key;        // national_id הישן
-                const cur = td.dataset.current;    // ערך גולמי
+                const key = td.dataset.key;
+                const cur = td.dataset.current;
                 const val = prompt('ערוך ' + col, cur);
                 if (val !== null && val !== cur) {
-                    // עדכון אופטימי ב־DOM
+                    // עדכון אופטימי
                     td.dataset.current = val;
                     td.textContent = formatDisplay(val, col);
 
-                    // עדכון state (חשוב לרענון עתידי)
+                    // עדכון state
                     const employee = state.employees.find(emp => emp.national_id == key);
                     if (employee) {
                         employee[col] = val;
-                        if (col === 'national_id') {
-                            // שינוי מפתח – מעדכן את שדה המפתח באובייקט
-                            const oldKey = key;
-                            employee.national_id = val;
-                            // Update the data-key on the row cells? We'll rely on server refresh later.
-                        }
                     }
 
                     // שליחה לשרת
@@ -281,21 +386,58 @@
                     postForm('update', payload);
                     showToast('עודכן');
 
-                    // רענון שקט מהשרת (מתקן אי-התאמות)
+                    // רענון שקט
                     setTimeout(() => {
-                        loadData(true); // force refresh
+                        loadData(true);
                     }, 3000);
                 }
             });
 
-            // ========== כפתור רענון ==========
-            document.getElementById('refreshBtn').addEventListener('click', () => {
-                clearCache();
-                loadData(true);
+            // ========== ניווט ==========
+            let currentPage = 'employees';
+            const pageRenderers = {
+                dashboard: () => {
+                    document.getElementById('mainContent').innerHTML = '<h1>לוח בקרה</h1><p>בקרוב...</p>';
+                },
+                employees: renderEmployeesPage,
+                weapons: () => {
+                    document.getElementById('mainContent').innerHTML = '<h1>נשקים</h1><p>בקרוב...</p>';
+                }
+            };
+
+            function navigateTo(page) {
+                currentPage = page;
+                document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+                const activeMenu = document.querySelector(`.menu-item[data-page="${page}"]`);
+                if (activeMenu) activeMenu.classList.add('active');
+                if (pageRenderers[page]) pageRenderers[page]();
+            }
+
+            document.querySelectorAll('.menu-item[data-page]').forEach(item => {
+                item.addEventListener('click', e => {
+                    e.preventDefault();
+                    navigateTo(item.dataset.page);
+                });
             });
 
-            // ========== טעינה ראשונית ==========
-            loadData();
+            // ========== מצב כהה/בהיר ==========
+            function setTheme(t) {
+                document.body.classList.toggle('dark', t === 'dark');
+                localStorage.setItem('strongfire_theme', t);
+                const btn = document.getElementById('themeToggleSide');
+                if (btn) btn.innerHTML = t === 'dark' ? '☀️ מצב בהיר' : '🌙 מצב כהה';
+            }
+            document.getElementById('themeToggleSide').addEventListener('click', () => {
+                const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
+                setTheme(newTheme);
+            });
+
+            // ========== אתחול ==========
+            (function init() {
+                const theme = localStorage.getItem('strongfire_theme') || 'dark';
+                setTheme(theme);
+                navigateTo('employees');
+            })();
         })();
     </script>
 </body>
