@@ -61,7 +61,6 @@
         function formatDisplay(val, col) {
             if (!val) return '';
             if (col.includes('expiry') || col.includes('date')) {
-                // try to format as dd/mm/yyyy
                 const d = new Date(val);
                 if (!isNaN(d.getTime())) {
                     return d.toLocaleDateString('he-IL');
@@ -70,6 +69,9 @@
             return val;
         }
 
+        // ---- אחסון נתונים זמני לעדכון אופטימי ----
+        let currentEmployees = [];
+
         async function loadEmployees() {
             try {
                 const employees = await jsonp(API_URL + '?action=get&sheet=employees');
@@ -77,44 +79,61 @@
                     document.getElementById('content').innerHTML = '<p>אין נתונים.</p>';
                     return;
                 }
-                const headers = Object.keys(employees[0]);
-                let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-                employees.forEach(row => {
-                    html += '<tr>';
-                    headers.forEach(h => {
-                        const raw = row[h] !== undefined ? row[h] : '';
-                        const display = formatDisplay(raw, h);
-                        // editable everything except uid & national_id
-                        const editable = (h === 'uid' || h === 'national_id') ? '0' : '1';
-                        html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}" data-display="${display}">${display}</td>`;
-                    });
-                    html += '</tr>';
-                });
-                html += '</tbody></table>';
-                document.getElementById('content').innerHTML = html;
-                attachEditHandlers();
+                currentEmployees = employees;
+                renderTable(employees);
             } catch(e) {
                 document.getElementById('content').innerHTML = '<p style="color:red;">שגיאה: ' + e.message + '</p>';
             }
+        }
+
+        function renderTable(employees) {
+            const headers = Object.keys(employees[0]);
+            let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+            employees.forEach(row => {
+                html += '<tr>';
+                headers.forEach(h => {
+                    const raw = row[h] !== undefined ? row[h] : '';
+                    const display = formatDisplay(raw, h);
+                    // רק uid לא ניתן לעריכה
+                    const editable = (h === 'uid') ? '0' : '1';
+                    html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}" data-display="${display}">${display}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('content').innerHTML = html;
+            attachEditHandlers();
         }
 
         function attachEditHandlers() {
             document.querySelectorAll('td[data-editable="1"]').forEach(td => {
                 td.addEventListener('click', async () => {
                     const col = td.dataset.col;
-                    const key = td.dataset.key;
-                    const cur = td.dataset.current;   // raw value (ISO for dates)
+                    const key = td.dataset.key;          // national_id הישן
+                    const cur = td.dataset.current;      // raw value
                     const val = prompt('ערוך ' + col, cur);
                     if (val !== null && val !== cur) {
-                        // עדכון מיידי בתצוגה
+                        // ---- עדכון אופטימי ----
                         td.dataset.current = val;
                         td.dataset.display = formatDisplay(val, col);
                         td.textContent = formatDisplay(val, col);
-                        // שליחה לשרת
-                        postForm('update', { sheet: 'employees', national_id: key, [col]: val });
-                        showToast('עודכן – מרענן…');
-                        // רענון מהשרת אחרי 3 שניות
-                        setTimeout(loadEmployees, 3000);
+
+                        // ---- שליחה לשרת ----
+                        const payload = { sheet: 'employees', [col]: val };
+                        if (col === 'national_id') {
+                            // שינוי מפתח – שולחים את הישן והחדש
+                            payload.old_national_id = key;
+                            payload.new_national_id = val;
+                        } else {
+                            payload.national_id = key;
+                        }
+                        postForm('update', payload);
+                        showToast('עודכן');
+
+                        // ---- רענון מהשרת (שקט) ----
+                        setTimeout(async () => {
+                            await loadEmployees();
+                        }, 3000);
                     }
                 });
             });
