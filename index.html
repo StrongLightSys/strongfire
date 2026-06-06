@@ -52,8 +52,7 @@
         .topbar-btn { background:var(--bg-topbar-btn); color:var(--text-topbar-btn); border-radius:9999px; padding:0.35rem 0.75rem; display:inline-flex; align-items:center; gap:0.25rem; border:none; cursor:pointer; font-size:0.85rem; }
         .content-area { transition:margin-right 0.3s; margin-right:220px; padding:24px; height:100vh; overflow-y:auto; }
         .sidebar.collapsed + .content-area { margin-right:0; }
-        .page { display:none; }
-        .page.active { display:block; }
+        .page { display:none; } .page.active { display:block; }
         .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
         .kpi-card { min-height: 120px; display: flex; flex-direction: column; justify-content: center; border-radius: 18px; border: 1px solid var(--border-card); padding: 1.15rem; background: var(--bg-card); backdrop-filter: blur(10px); color: var(--text-primary); box-shadow: var(--card-shadow); }
         .kpi-card.positive { border-top: 3px solid #10B981; } .kpi-card.warning { border-top: 3px solid #EF4444; } .kpi-card.info { border-top: 3px solid #3B82F6; }
@@ -82,8 +81,7 @@
         .tab i { font-size:1rem; }
         .tab.active { color:#3B82F6; font-weight:600; background:rgba(59,130,246,0.05); }
         .tab.active::after { content:''; position:absolute; bottom:-1px; left:0; right:0; height:3px; background:#3B82F6; border-radius:3px 3px 0 0; }
-        .tab-content { display:none; }
-        .tab-content.active { display:block; }
+        .tab-content { display:none; } .tab-content.active { display:block; }
         .form-group { margin-bottom:0.9rem; }
         .form-group label { display:block; margin-bottom:0.25rem; font-weight:500; font-size:0.85rem; }
         .form-group input, .form-group select { width:100%; padding:0.5rem; border:1px solid var(--border-color); border-radius:0.5rem; background:var(--bg-card); color:var(--text-primary); transition:border-color 0.2s; font-size:0.9rem; }
@@ -113,23 +111,40 @@
     </aside>
 
     <div class="content-area" id="mainContent"></div>
+    <iframe name="hiddenFrame" style="display:none;"></iframe>
 
     <script>
-        // ========== Server Calls ==========
-        function callServer(func, ...args) {
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzVsc6_vkDiXpMc2_v0A1exz5G_6p47CPkv1GHBfvORCJ5ZrwFlRYukNbK9PEiNl8V5/exec';
+
+        function jsonp(url) {
             return new Promise((resolve, reject) => {
-                google.script.run
-                    .withSuccessHandler(resolve)
-                    .withFailureHandler(reject)
-                    [func](...args);
+                const callback = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+                const script = document.createElement('script');
+                window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
+                script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
+                script.onerror = () => { delete window[callback]; script.remove(); reject('JSONP error'); };
+                document.body.appendChild(script);
             });
+        }
+
+        function postForm(action, data) {
+            const form = document.createElement('form');
+            form.method = 'POST'; form.action = API_URL; form.target = 'hiddenFrame';
+            form.appendChild(Object.assign(document.createElement('input'), {name:'action', value:action}));
+            form.appendChild(Object.assign(document.createElement('input'), {name:'sheet', value:data.sheet || 'employees'}));
+            for (let key in data) {
+                form.appendChild(Object.assign(document.createElement('input'), {name:key, value:data[key]}));
+            }
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => form.remove(), 200);
         }
 
         function showToast(msg, type = 'success') {
             const toast = document.createElement('div');
             toast.className = 'toast';
             toast.style.background = type === 'error' ? '#EF4444' : '#10B981';
-            toast.innerHTML = `<i class="fas ${type === 'error' ? 'fa-exclamation-circle' : 'fa-check-circle'} mr-1"></i> ${msg}`;
+            toast.innerHTML = `<i class="fas ${type==='error'?'fa-exclamation-circle':'fa-check-circle'} mr-1"></i> ${msg}`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
@@ -188,11 +203,22 @@
             const CACHE_KEY = 'dashboard_cache';
             const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
             if (cachedData) { renderDashboard(cachedData); refreshDashboardInBackground(CACHE_KEY); return; }
-            const data = await callServer('getDashboard');
-            setCache(CACHE_KEY, data); renderDashboard(data);
+            const data = await jsonp(API_URL + '?action=dashboard');
+            if (data && data.employees) {
+                setCache(CACHE_KEY, data);
+                renderDashboard(data);
+            } else {
+                document.getElementById('mainContent').innerHTML = '<p style="color:red;">לא ניתן לטעון נתונים. אנא ודא שה‑API זמין.</p>';
+            }
         }
         async function refreshDashboardInBackground(CACHE_KEY) {
-            try { const fresh = await callServer('getDashboard'); setCache(CACHE_KEY, fresh); if (currentPage === 'dashboard') renderDashboard(fresh); } catch(e) {}
+            try {
+                const fresh = await jsonp(API_URL + '?action=dashboard');
+                if (fresh && fresh.employees) {
+                    setCache(CACHE_KEY, fresh);
+                    if (currentPage === 'dashboard') renderDashboard(fresh);
+                }
+            } catch(e) {}
         }
         function renderDashboard({ employees, weapons, checkouts, alerts }) {
             const totalWeapons = weapons.length;
@@ -298,11 +324,22 @@
             const CACHE_KEY = 'employees_cache';
             const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
             if (cachedData) { empData = cachedData; renderEmployeesTable(); refreshEmployeesInBackground(CACHE_KEY); return; }
-            empData = await callServer('getEmployeesPage');
-            setCache(CACHE_KEY, empData); renderEmployeesTable();
+            const data = await jsonp(API_URL + '?action=employeesPage');
+            if (data && data.employees) {
+                empData = data;
+                setCache(CACHE_KEY, empData);
+                renderEmployeesTable();
+            }
         }
         async function refreshEmployeesInBackground(CACHE_KEY) {
-            try { empData = await callServer('getEmployeesPage'); setCache(CACHE_KEY, empData); if (currentPage === 'employees') renderEmployeesTable(); } catch(e) {}
+            try {
+                const data = await jsonp(API_URL + '?action=employeesPage');
+                if (data && data.employees) {
+                    empData = data;
+                    setCache(CACHE_KEY, empData);
+                    if (currentPage === 'employees') renderEmployeesTable();
+                }
+            } catch(e) {}
         }
         function renderEmployeesTable() {
             const term = (document.getElementById('empSearch')?.value || '').toLowerCase();
@@ -398,31 +435,42 @@
                 training_expiry: document.getElementById('inputTraining').value,
                 weapons: assignedWeapons.join(', ')
             };
-            try {
-                if (currentEditId) {
-                    data.national_id = currentEditId;
-                    await callServer('updateEmployee', data);
+            if (currentEditId) {
+                data.national_id = currentEditId;
+                postForm('update', { ...data, sheet: 'employees', national_id: currentEditId });
+            } else {
+                if (empData.employees.some(e => e.national_id == nationalId)) return alert('תעודת זהות קיימת');
+                const maxUid = Math.max(...empData.employees.map(e => e.uid||0), 0);
+                data.uid = maxUid + 1;
+                postForm('add', { ...data, sheet: 'employees' });
+            }
+            clearAllCaches();
+            document.getElementById('employeeModal').classList.remove('active');
+            showToast('שינוי נשלח – בודק עדכון…');
+            setTimeout(async () => {
+                await loadEmployees(true);
+                const updated = empData.employees.find(e => e.national_id == (currentEditId || nationalId));
+                if (updated) {
+                    showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
                 } else {
-                    await callServer('addEmployee', data);
+                    showToast('השמירה נכשלה – נסה שוב', 'error');
                 }
-                clearAllCaches();
-                document.getElementById('employeeModal').classList.remove('active');
-                await loadEmployees(true);
-                showToast(currentEditId ? 'המאבטח עודכן' : 'המאבטח נוסף');
-            } catch(e) {
-                showToast('השמירה נכשלה – ' + e.message, 'error');
-            }
+            }, 3000);
         }
-        window.deleteEmployee = async function(nationalId) {
+        window.deleteEmployee = function(nationalId) {
             if (!confirm('למחוק?')) return;
-            try {
-                await callServer('deleteEmployee', nationalId);
-                clearAllCaches();
+            postForm('delete', { sheet: 'employees', national_id: nationalId });
+            clearAllCaches();
+            showToast('מחיקה נשלחה – בודק עדכון…');
+            setTimeout(async () => {
                 await loadEmployees(true);
-                showToast('המאבטח נמחק');
-            } catch(e) {
-                showToast('המחיקה נכשלה – ' + e.message, 'error');
-            }
+                const exists = empData.employees.some(e => e.national_id == nationalId);
+                if (!exists) {
+                    showToast('המאבטח נמחק');
+                } else {
+                    showToast('המחיקה נכשלה – נסה שוב', 'error');
+                }
+            }, 3000);
         };
 
         // ===================== WEAPONS =====================
@@ -463,11 +511,22 @@
             const CACHE_KEY = 'weapons_cache';
             const cachedData = !forceRefresh ? getCached(CACHE_KEY) : null;
             if (cachedData) { wepData = cachedData; renderWeaponsTable(); refreshWeaponsInBackground(CACHE_KEY); return; }
-            wepData = await callServer('getWeaponsPage');
-            setCache(CACHE_KEY, wepData); renderWeaponsTable();
+            const data = await jsonp(API_URL + '?action=weaponsPage');
+            if (data && data.weapons) {
+                wepData = data;
+                setCache(CACHE_KEY, wepData);
+                renderWeaponsTable();
+            }
         }
         async function refreshWeaponsInBackground(CACHE_KEY) {
-            try { wepData = await callServer('getWeaponsPage'); setCache(CACHE_KEY, wepData); if (currentPage === 'weapons') renderWeaponsTable(); } catch(e) {}
+            try {
+                const data = await jsonp(API_URL + '?action=weaponsPage');
+                if (data && data.weapons) {
+                    wepData = data;
+                    setCache(CACHE_KEY, wepData);
+                    if (currentPage === 'weapons') renderWeaponsTable();
+                }
+            } catch(e) {}
         }
         function renderWeaponsTable() {
             const term = (document.getElementById('wepSearch')?.value || '').toLowerCase();
@@ -527,31 +586,39 @@
                 status: document.getElementById('inputWepStatus').value,
                 location: document.getElementById('inputLocation').value
             };
-            try {
-                if (currentEditSerial) {
-                    data.serial = currentEditSerial;
-                    await callServer('updateWeapon', data);
+            if (currentEditSerial) {
+                data.serial = currentEditSerial;
+                postForm('update', { ...data, sheet: 'weapons', serial: currentEditSerial });
+            } else {
+                postForm('add', { ...data, sheet: 'weapons' });
+            }
+            clearAllCaches();
+            document.getElementById('weaponModal').classList.remove('active');
+            showToast('שינוי נשלח – בודק עדכון…');
+            setTimeout(async () => {
+                await loadWeapons(true);
+                const updated = wepData.weapons.find(w => w.serial == serial);
+                if (updated) {
+                    showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
                 } else {
-                    await callServer('addWeapon', data);
+                    showToast('השמירה נכשלה – נסה שוב', 'error');
                 }
-                clearAllCaches();
-                document.getElementById('weaponModal').classList.remove('active');
-                await loadWeapons(true);
-                showToast(currentEditSerial ? 'הנשק עודכן' : 'הנשק נוסף');
-            } catch(e) {
-                showToast('השמירה נכשלה – ' + e.message, 'error');
-            }
+            }, 3000);
         }
-        window.deleteWeapon = async function(serial) {
+        window.deleteWeapon = function(serial) {
             if (!confirm('למחוק?')) return;
-            try {
-                await callServer('deleteWeapon', serial);
-                clearAllCaches();
+            postForm('delete', { sheet: 'weapons', serial });
+            clearAllCaches();
+            showToast('מחיקה נשלחה – בודק עדכון…');
+            setTimeout(async () => {
                 await loadWeapons(true);
-                showToast('הנשק נמחק');
-            } catch(e) {
-                showToast('המחיקה נכשלה – ' + e.message, 'error');
-            }
+                const exists = wepData.weapons.some(w => w.serial == serial);
+                if (!exists) {
+                    showToast('הנשק נמחק');
+                } else {
+                    showToast('המחיקה נכשלה – נסה שוב', 'error');
+                }
+            }, 3000);
         };
 
         // ===================== INIT =====================
