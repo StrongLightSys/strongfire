@@ -68,7 +68,6 @@
         tbody tr:hover { background: var(--table-row-hover); }
         .status-badge { padding:0.15rem 0.5rem; border-radius:9999px; font-size:0.7rem; font-weight:600; display:inline-block; }
         .status-active { background:rgba(16,185,129,0.2); color:#10B981; } .status-blocked { background:rgba(239,68,68,0.2); color:#EF4444; }
-        .status-available { background:rgba(16,185,129,0.2); color:#10B981; } .status-assigned { background:rgba(245,158,11,0.2); color:#F59E0B; }
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); align-items:center; justify-content:center; z-index:100; }
         .modal.active { display:flex; }
         .modal-content { background:var(--bg-card); border-radius:1rem; padding:1.25rem; max-width:600px; width:90%; color:var(--text-primary); backdrop-filter:blur(10px); position:relative; animation:slideUp 0.3s ease; height:480px; display:flex; flex-direction:column; }
@@ -111,12 +110,10 @@
     </aside>
 
     <div class="content-area" id="mainContent"></div>
-    <iframe name="hiddenFrame" style="display:none;"></iframe>
 
     <script>
         const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
 
-        // ========== Core ==========
         function jsonp(url) {
             return new Promise((resolve, reject) => {
                 const callback = 'cb_' + Date.now();
@@ -137,17 +134,14 @@
             form.method = 'POST'; form.action = API_URL; form.target = iframe.name; form.style.display = 'none';
             form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
                 Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
-            document.body.appendChild(form); form.submit();
+            document.body.appendChild(form);
+            form.submit();
             setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
         }
 
-        function showToast(msg, type = 'success') {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.style.background = type === 'error' ? '#EF4444' : '#10B981';
-            toast.innerHTML = `<i class="fas ${type==='error'?'fa-exclamation-circle':'fa-check-circle'} mr-1"></i> ${msg}`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
+        function showToast(msg) {
+            const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+            document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
         }
 
         function formatDate(iso) { if(!iso) return '-'; const d = new Date(iso); return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
@@ -161,7 +155,6 @@
         function setCache(key, data) { sessionStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() })); }
         function clearAllCaches() { ['dashboard_cache','employees_cache','weapons_cache'].forEach(k => sessionStorage.removeItem(k)); }
 
-        // ========== SPA Engine ==========
         let currentPage = 'dashboard';
         const pageRenderers = {};
         function registerPage(name, renderFn) { pageRenderers[name] = renderFn; }
@@ -310,10 +303,14 @@
                         </div>
                         <div class="tab-content" id="tab-documents">
                             <p class="text-sm opacity-70 mb-2">מסמכים משויכים</p>
-                            <table class="doc-table"><thead><tr><th>סוג</th><th>תוקף</th><th>סטטוס</th></tr></thead><tbody>
-                                <tr><td>רישיון</td><td>31/12/2025</td><td style="color:#10B981;">בתוקף</td></tr>
-                                <tr><td>בריאות</td><td>01/10/2024</td><td style="color:#EF4444;">פג תוקף</td></tr>
-                            </tbody></table>
+                            <table class="doc-table">
+                                <thead><tr><th>סוג מסמך</th><th>תאריך תוקף</th><th>סטטוס</th></tr></thead>
+                                <tbody>
+                                    <tr><td>רישיון נשק</td><td>31/12/2025</td><td><span style="color:#10B981;">בתוקף</span></td></tr>
+                                    <tr><td>בדיקת בריאות</td><td>01/10/2024</td><td><span style="color:#EF4444;">פג תוקף</span></td></tr>
+                                    <tr><td>הדרכה שנתית</td><td>11/11/2025</td><td><span style="color:#10B981;">בתוקף</span></td></tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                     <div class="flex gap-2 mt-4 justify-end">
@@ -325,6 +322,7 @@
             bindEmployeeEvents();
         });
 
+        // --- Employees logic (same as working version, adapted for SPA) ---
         let empData = { employees: [], weapons: [] };
         let currentEditId = null, assignedWeapons = [];
 
@@ -415,8 +413,8 @@
             document.getElementById('inputTraining').value = emp.training_expiry || '';
             assignedWeapons = emp.weapons ? emp.weapons.split(',').map(w=>w.trim()) : [];
             const otherAssigned = empData.employees.filter(e => e.national_id !== nationalId).flatMap(e => (e.weapons||'').split(',').map(w=>w.trim()));
-            const availableList = empData.weapons.filter(w => !otherAssigned.includes(w.serial));
-            populateWeaponSelect(availableList); renderAssignedWeapons();
+            const availableWeaponsList = empData.weapons.filter(w => !otherAssigned.includes(w.serial));
+            populateWeaponSelect(availableWeaponsList); renderAssignedWeapons();
             document.getElementById('employeeModal').classList.add('active');
             switchTab('personal');
         };
@@ -450,25 +448,21 @@
                 weapons: assignedWeapons.join(', ')
             };
             if (currentEditId) {
-                data.national_id = currentEditId;
-                postForm('update', { ...data, sheet: 'employees', national_id: currentEditId });
-            } else {
-                if (empData.employees.some(e => e.national_id == nationalId)) return alert('תעודת זהות קיימת');
-                const maxUid = Math.max(...empData.employees.map(e => e.uid||0), 0);
-                data.uid = maxUid + 1;
-                postForm('add', { ...data, sheet: 'employees' });
+                data.old_national_id = currentEditId;
+                data.new_national_id = nationalId;
             }
+            postForm('update', { ...data, sheet: 'employees' });
             clearAllCaches();
             document.getElementById('employeeModal').classList.remove('active');
-            showToast('שינוי נשלח – מרענן…');
-            setTimeout(() => loadEmployees(true), 3000);
+            showToast('שינוי נשלח');
+            setTimeout(() => loadEmployees(true), 2000);
         }
         window.deleteEmployee = function(nationalId) {
             if (!confirm('למחוק?')) return;
             postForm('delete', { sheet: 'employees', national_id: nationalId });
             clearAllCaches();
-            showToast('מחיקה נשלחה – מרענן…');
-            setTimeout(() => loadEmployees(true), 3000);
+            showToast('מחיקה נשלחה');
+            setTimeout(() => loadEmployees(true), 2000);
         };
 
         // ===================== WEAPONS =====================
@@ -482,22 +476,7 @@
                     <button id="refreshWeaponsBtn" class="topbar-btn"><i class="fas fa-sync-alt"></i></button>
                 </div>
                 <div class="table-card"><table id="weaponsTable"><thead><tr><th>סיריאלי</th><th>סוג</th><th>סטטוס</th><th>מיקום</th><th>מאבטח</th><th>פעולות</th></tr></thead><tbody></tbody></table></div>
-                <div id="weaponModal" class="modal"><div class="modal-content">
-                    <button class="modal-close" onclick="document.getElementById('weaponModal').classList.remove('active')">&times;</button>
-                    <h3 class="text-lg font-bold mb-3" id="weaponModalTitle">הוספת נשק</h3>
-                    <div class="modal-body">
-                        <div class="flex flex-wrap gap-4">
-                            <div class="form-group flex-1 min-w-[45%]"><label>מספר סיריאלי</label><input type="text" id="inputSerial"></div>
-                            <div class="form-group flex-1 min-w-[45%]"><label>סוג</label><select id="inputType"><option value="רובה M16">רובה M16</option><option value="אקדח גלוק">אקדח גלוק</option><option value="רובה תבור">רובה תבור</option><option value="אקדח יריחו">אקדח יריחו</option></select></div>
-                            <div class="form-group flex-1 min-w-[45%]"><label>סטטוס</label><select id="inputWepStatus"><option value="פנוי">פנוי</option><option value="משויך">משויך</option><option value="בטיפול">בטיפול</option><option value="מושבת">מושבת</option></select></div>
-                            <div class="form-group flex-1 min-w-[45%]"><label>מיקום</label><input type="text" id="inputLocation" value="כספת A"></div>
-                        </div>
-                    </div>
-                    <div class="flex gap-2 mt-4 justify-end">
-                        <button class="topbar-btn px-3 py-1" style="background:#3B82F6; color:white;" id="saveWeaponBtn">שמור</button>
-                        <button class="topbar-btn px-3 py-1" onclick="document.getElementById('weaponModal').classList.remove('active')">ביטול</button>
-                    </div>
-                </div></div>`;
+                <div id="weaponModal" class="modal"><div class="modal-content">…</div></div>`;
             loadWeapons(false);
             bindWeaponEvents();
         });
@@ -591,22 +570,21 @@
                 location: document.getElementById('inputLocation').value
             };
             if (currentEditSerial) {
-                data.serial = currentEditSerial;
-                postForm('update', { ...data, sheet: 'weapons', serial: currentEditSerial });
-            } else {
-                postForm('add', { ...data, sheet: 'weapons' });
+                data.old_serial = currentEditSerial;
+                data.new_serial = serial;
             }
+            postForm('update', { ...data, sheet: 'weapons' });
             clearAllCaches();
             document.getElementById('weaponModal').classList.remove('active');
-            showToast('שינוי נשלח – מרענן…');
-            setTimeout(() => loadWeapons(true), 3000);
+            showToast('שינוי נשלח');
+            setTimeout(() => loadWeapons(true), 2000);
         }
         window.deleteWeapon = function(serial) {
             if (!confirm('למחוק?')) return;
             postForm('delete', { sheet: 'weapons', serial });
             clearAllCaches();
-            showToast('מחיקה נשלחה – מרענן…');
-            setTimeout(() => loadWeapons(true), 3000);
+            showToast('מחיקה נשלחה');
+            setTimeout(() => loadWeapons(true), 2000);
         };
 
         // ===================== INIT =====================
