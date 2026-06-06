@@ -2,170 +2,93 @@
 <html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>StrongFire – תצוגת נתונים</title>
+    <title>StrongFire – עובדים</title>
     <style>
-        body {
-            font-family: 'Segoe UI', system-ui, sans-serif;
-            background: #0F172A;
-            color: #F1F5F9;
-            padding: 2rem;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 2rem;
-        }
-        th, td {
-            padding: 0.5rem;
-            border: 1px solid #334155;
-            text-align: right;
-        }
-        th {
-            background: #1E293B;
-        }
-        td[data-editable] {
-            cursor: pointer;
-            background: rgba(59,130,246,0.1);
-        }
-        td[data-editable]:hover {
-            background: rgba(59,130,246,0.2);
-        }
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: #10B981;
-            color: white;
-            padding: 0.75rem 1.25rem;
-            border-radius: 0.5rem;
-            z-index: 200;
-        }
+        body { font-family: 'Segoe UI', sans-serif; background: #0F172A; color: #F1F5F9; padding: 2rem; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 0.5rem; border: 1px solid #334155; text-align: right; }
+        th { background: #1E293B; }
+        td[data-editable] { cursor: pointer; background: rgba(59,130,246,0.1); }
+        td[data-editable]:hover { background: rgba(59,130,246,0.2); }
+        .toast { position:fixed; bottom:20px; left:20px; background:#10B981; color:white; padding:0.75rem 1.25rem; border-radius:0.5rem; z-index:200; }
     </style>
 </head>
 <body>
-    <h1>StrongFire – נתוני גיליון</h1>
-    <div id="content"></div>
+    <h1>StrongFire – עובדים</h1>
+    <div id="content">טוען…</div>
 
     <script>
-        // ⚠️ הכתובת החדשה
-        const API_URL = 'https://script.google.com/macros/s/AKfycbz_G19OFjp1OC3o61BhhFxDZwtat8DihxXSCIAU4A6VuslwgILCQ1Bj16bFHWGI_k0g/exec';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzr3vECuRmP90T8ZWauWfBDg4IIhrjUfDmeRg9V6w5sXQoCBMx-v4ccigS_7OC6XKAt/exec';
 
         function jsonp(url) {
             return new Promise((resolve, reject) => {
-                const callback = 'cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+                const callback = 'cb_' + Date.now();
                 const script = document.createElement('script');
-                window[callback] = (data) => {
-                    delete window[callback];
-                    script.remove();
-                    resolve(data);
-                };
+                window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
                 script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
-                script.onerror = () => {
-                    delete window[callback];
-                    script.remove();
-                    reject(new Error('JSONP error'));
-                };
+                script.onerror = () => { delete window[callback]; script.remove(); reject('JSONP error'); };
                 document.body.appendChild(script);
             });
         }
 
         function postForm(action, data) {
-            const iframe = document.createElement('iframe');
-            iframe.name = 'hf_' + Date.now();
-            iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = API_URL;
-            form.target = iframe.name;
-
-            form.appendChild(Object.assign(document.createElement('input'), { name: 'action', value: action }));
-            form.appendChild(Object.assign(document.createElement('input'), { name: 'sheet', value: data.sheet || 'employees' }));
-            for (let key in data) {
-                form.appendChild(Object.assign(document.createElement('input'), { name: key, value: data[key] }));
-            }
-
+            form.target = '_blank';
+            form.style.display = 'none';
+            form.innerHTML = `
+                <input name="action" value="${action}">
+                <input name="sheet" value="${data.sheet || 'employees'}">
+                ${Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('')}
+            `;
             document.body.appendChild(form);
             form.submit();
-            setTimeout(() => { form.remove(); iframe.remove(); }, 500);
+            setTimeout(() => form.remove(), 500);
         }
 
         function showToast(msg) {
-            const toast = document.createElement('div');
-            toast.className = 'toast';
-            toast.innerText = msg;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 2500);
+            const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+            document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
         }
 
-        async function loadData() {
+        async function loadEmployees() {
             try {
-                const [employees, weapons, checkouts, alerts] = await Promise.all([
-                    jsonp(API_URL + '?action=get&sheet=employees'),
-                    jsonp(API_URL + '?action=get&sheet=weapons'),
-                    jsonp(API_URL + '?action=get&sheet=checkouts'),
-                    jsonp(API_URL + '?action=get&sheet=alerts')
-                ]);
-
-                document.getElementById('content').innerHTML = `
-                    <h2>עובדים</h2>
-                    <table>${buildTable(employees, 'employees', 'national_id')}</table>
-                    <h2>נשקים</h2>
-                    <table>${buildTable(weapons, 'weapons', 'serial')}</table>
-                    <h2>מסירות</h2>
-                    <table>${buildTable(checkouts, 'checkouts', 'id')}</table>
-                    <h2>התראות</h2>
-                    <table>${buildTable(alerts, 'alerts', 'id')}</table>
-                `;
-
-                // חיבור אירועי עריכה
-                document.querySelectorAll('td[data-editable]').forEach(td => {
+                const employees = await jsonp(API_URL + '?action=get&sheet=employees');
+                if (!employees || employees.length === 0) {
+                    document.getElementById('content').innerHTML = '<p>אין נתונים.</p>';
+                    return;
+                }
+                const headers = Object.keys(employees[0]);
+                let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+                employees.forEach(row => {
+                    html += '<tr>';
+                    headers.forEach(h => {
+                        const val = row[h] !== undefined ? row[h] : '';
+                        const editable = (h === 'status' || h === 'level' || h === 'course') ? '1' : '0';
+                        html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${val}">${val}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('content').innerHTML = html;
+                document.querySelectorAll('td[data-editable="1"]').forEach(td => {
                     td.addEventListener('click', async () => {
-                        const col = td.dataset.col;
-                        const sheet = td.dataset.sheet;
-                        const key = td.dataset.key;
-                        const current = td.dataset.current;
-                        const newVal = prompt(`ערוך ${col}`, current);
-                        if (newVal !== null && newVal !== current) {
-                            const payload = { sheet };
-                            payload[col] = newVal;
-                            if (sheet === 'employees') payload['national_id'] = key;
-                            else if (sheet === 'weapons') payload['serial'] = key;
-                            else payload['id'] = key;
-                            postForm('update', payload);
-                            showToast(`עודכן ${col} – מרענן…`);
-                            // רענון אוטומטי
-                            setTimeout(loadData, 2000);
+                        const col = td.dataset.col, key = td.dataset.key, cur = td.dataset.current;
+                        const val = prompt('ערוך ' + col, cur);
+                        if (val !== null && val !== cur) {
+                            postForm('update', { sheet: 'employees', national_id: key, [col]: val });
+                            showToast('עודכן – רענן בעוד שניה');
+                            setTimeout(loadEmployees, 2000);
                         }
                     });
                 });
-
-            } catch (err) {
-                document.getElementById('content').innerHTML = '<p style="color:red;">שגיאה בטעינת נתונים – רענן ונסה שוב.</p>';
-                console.error(err);
+            } catch(e) {
+                document.getElementById('content').innerHTML = '<p style="color:red;">שגיאה: ' + e.message + '</p>';
             }
         }
 
-        function buildTable(rows, sheetName, keyColumn) {
-            if (!rows || !rows.length) return '<tr><td>אין נתונים</td></tr>';
-            const headers = Object.keys(rows[0]);
-            return `
-                <thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>
-                <tbody>
-                    ${rows.map(row => `
-                        <tr>
-                            ${headers.map(h => {
-                                const val = row[h] !== undefined ? row[h] : '';
-                                const editable = ['status','level','course','location','notes','severity','type','checkin_date','checkout_date'].includes(h);
-                                return `<td data-editable="${editable}" data-col="${h}" data-sheet="${sheetName}" data-key="${row[keyColumn]}" data-current="${val}">${val}</td>`;
-                            }).join('')}
-                        </tr>
-                    `).join('')}
-                </tbody>`;
-        }
-
-        loadData();
+        loadEmployees();
     </script>
 </body>
 </html>
