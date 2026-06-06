@@ -86,126 +86,217 @@
             z-index: 200;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
+        #error-message { color: #EF4444; margin: 1rem 0; }
     </style>
 </head>
 <body>
     <h1>StrongFire – עובדים</h1>
     <button id="refreshBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>
+    <div id="error-message" style="display:none;"></div>
     <div id="content">טוען…</div>
 
     <script>
-        const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
+        (function() {
+            const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
+            const CACHE_KEY = 'employees_cache';
+            const CACHE_MAX_AGE = 300000; // 5 דקות
 
-        function jsonp(url) {
-            return new Promise((resolve, reject) => {
-                const callback = 'cb_' + Date.now();
-                const script = document.createElement('script');
-                window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
-                script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
-                script.onerror = () => { delete window[callback]; script.remove(); reject(new Error('JSONP error')); };
-                document.body.appendChild(script);
-            });
-        }
+            // ========== מצב גלובלי ==========
+            const state = {
+                employees: [],
+                isLoading: false,
+                error: null
+            };
 
-        function postForm(action, data) {
-            const iframe = document.createElement('iframe');
-            iframe.name = 'hf_' + Date.now();
-            iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = API_URL;
-            form.target = iframe.name;
-            form.style.display = 'none';
-            form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
-                Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
-            document.body.appendChild(form);
-            form.submit();
-            setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
-        }
+            // ========== כלי עזר ==========
+            function jsonp(url) {
+                return new Promise((resolve, reject) => {
+                    const callback = 'cb_' + Date.now();
+                    const script = document.createElement('script');
+                    window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
+                    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
+                    script.onerror = () => { delete window[callback]; script.remove(); reject(new Error('JSONP error')); };
+                    document.body.appendChild(script);
+                });
+            }
 
-        function showToast(msg) {
-            const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
-            document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
-        }
+            function postForm(action, data) {
+                const iframe = document.createElement('iframe');
+                iframe.name = 'hf_' + Date.now();
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
 
-        function formatDisplay(val, col) {
-            if (!val) return '';
-            if (col.includes('expiry') || col.includes('date')) {
-                const d = new Date(val);
-                if (!isNaN(d.getTime())) {
-                    return d.toLocaleDateString('he-IL');
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = API_URL;
+                form.target = iframe.name;
+                form.style.display = 'none';
+
+                form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
+                    Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
+
+                document.body.appendChild(form);
+                form.submit();
+
+                setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
+            }
+
+            function showToast(msg) {
+                const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+                document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
+            }
+
+            function formatDisplay(val, col) {
+                if (!val) return '';
+                if (col.includes('expiry') || col.includes('date')) {
+                    const d = new Date(val);
+                    if (!isNaN(d.getTime())) return d.toLocaleDateString('he-IL');
+                }
+                return val;
+            }
+
+            // ========== מטמון ==========
+            function getCached() {
+                const cached = sessionStorage.getItem(CACHE_KEY);
+                if (!cached) return null;
+                try {
+                    const { data, timestamp } = JSON.parse(cached);
+                    if (Date.now() - timestamp < CACHE_MAX_AGE) return data;
+                } catch(e) {}
+                return null;
+            }
+            function setCache(data) {
+                sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+            }
+            function clearCache() {
+                sessionStorage.removeItem(CACHE_KEY);
+            }
+
+            // ========== גישה לשרת ==========
+            async function fetchFromServer() {
+                state.isLoading = true;
+                try {
+                    const employees = await jsonp(API_URL + '?action=get&sheet=employees');
+                    if (!employees || !Array.isArray(employees)) throw new Error('תשובה לא תקינה מהשרת');
+                    state.employees = employees;
+                    state.error = null;
+                    setCache(employees);
+                } catch(e) {
+                    state.error = e.message;
+                    // נסה לטעון ממטמון במקרה של כשל
+                    const cached = getCached();
+                    if (cached) {
+                        state.employees = cached;
+                        state.error = null;
+                        showToast('הוצגו נתונים מהמטמון (ללא חיבור)');
+                    }
+                } finally {
+                    state.isLoading = false;
                 }
             }
-            return val;
-        }
 
-        let currentEmployees = [];
-
-        async function loadEmployees() {
-            try {
-                const employees = await jsonp(API_URL + '?action=get&sheet=employees');
-                if (!employees || employees.length === 0) {
-                    document.getElementById('content').innerHTML = '<p>אין נתונים.</p>';
+            async function loadData(forceRefresh = false) {
+                const cached = getCached();
+                if (!forceRefresh && cached) {
+                    state.employees = cached;
+                    render();
+                    // רענון שקט
+                    fetchFromServer().then(() => {
+                        if (state.error === null) render();
+                    });
                     return;
                 }
-                currentEmployees = employees;
-                renderTable(employees);
-            } catch(e) {
-                document.getElementById('content').innerHTML = '<p style="color:red;">שגיאה: ' + e.message + '</p>';
+                await fetchFromServer();
+                render();
             }
-        }
 
-        function renderTable(employees) {
-            const headers = Object.keys(employees[0]);
-            let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-            employees.forEach(row => {
-                html += '<tr>';
-                headers.forEach(h => {
-                    const raw = row[h] !== undefined ? row[h] : '';
-                    const display = formatDisplay(raw, h);
-                    const editable = (h === 'uid') ? '0' : '1';
-                    html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}" data-display="${display}">${display}</td>`;
+            // ========== תצוגה ==========
+            function render() {
+                const contentEl = document.getElementById('content');
+                const errorEl = document.getElementById('error-message');
+
+                if (state.error && state.employees.length === 0) {
+                    errorEl.style.display = 'block';
+                    errorEl.textContent = 'שגיאה בטעינת נתונים: ' + state.error;
+                    contentEl.innerHTML = '';
+                    return;
+                }
+                errorEl.style.display = 'none';
+
+                if (!state.employees.length) {
+                    contentEl.innerHTML = '<p>אין נתונים.</p>';
+                    return;
+                }
+
+                const headers = Object.keys(state.employees[0]);
+                let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+                state.employees.forEach(row => {
+                    html += '<tr>';
+                    headers.forEach(h => {
+                        const raw = row[h] !== undefined ? row[h] : '';
+                        const display = formatDisplay(raw, h);
+                        const editable = (h === 'uid') ? '0' : '1';
+                        html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}">${display}</td>`;
+                    });
+                    html += '</tr>';
                 });
-                html += '</tr>';
-            });
-            html += '</tbody></table>';
-            document.getElementById('content').innerHTML = html;
-            attachEditHandlers();
-        }
+                html += '</tbody></table>';
+                contentEl.innerHTML = html;
+            }
 
-        function attachEditHandlers() {
-            document.querySelectorAll('td[data-editable="1"]').forEach(td => {
-                td.addEventListener('click', async () => {
-                    const col = td.dataset.col;
-                    const key = td.dataset.key;
-                    const cur = td.dataset.current;
-                    const val = prompt('ערוך ' + col, cur);
-                    if (val !== null && val !== cur) {
-                        td.dataset.current = val;
-                        td.dataset.display = formatDisplay(val, col);
-                        td.textContent = formatDisplay(val, col);
+            // ========== עריכת תאים (Event Delegation) ==========
+            document.getElementById('content').addEventListener('click', function(e) {
+                const td = e.target.closest('td[data-editable="1"]');
+                if (!td) return;
 
-                        const payload = { sheet: 'employees', [col]: val };
+                const col = td.dataset.col;
+                const key = td.dataset.key;        // national_id הישן
+                const cur = td.dataset.current;    // ערך גולמי
+                const val = prompt('ערוך ' + col, cur);
+                if (val !== null && val !== cur) {
+                    // עדכון אופטימי ב־DOM
+                    td.dataset.current = val;
+                    td.textContent = formatDisplay(val, col);
+
+                    // עדכון state (חשוב לרענון עתידי)
+                    const employee = state.employees.find(emp => emp.national_id == key);
+                    if (employee) {
+                        employee[col] = val;
                         if (col === 'national_id') {
-                            payload.old_national_id = key;
-                            payload.new_national_id = val;
-                        } else {
-                            payload.national_id = key;
+                            // שינוי מפתח – מעדכן את שדה המפתח באובייקט
+                            const oldKey = key;
+                            employee.national_id = val;
+                            // Update the data-key on the row cells? We'll rely on server refresh later.
                         }
-                        postForm('update', payload);
-                        showToast('עודכן');
-
-                        setTimeout(async () => {
-                            await loadEmployees();
-                        }, 3000);
                     }
-                });
-            });
-        }
 
-        document.getElementById('refreshBtn').addEventListener('click', loadEmployees);
-        loadEmployees();
+                    // שליחה לשרת
+                    const payload = { sheet: 'employees', [col]: val };
+                    if (col === 'national_id') {
+                        payload.old_national_id = key;
+                        payload.new_national_id = val;
+                    } else {
+                        payload.national_id = key;
+                    }
+                    postForm('update', payload);
+                    showToast('עודכן');
+
+                    // רענון שקט מהשרת (מתקן אי-התאמות)
+                    setTimeout(() => {
+                        loadData(true); // force refresh
+                    }, 3000);
+                }
+            });
+
+            // ========== כפתור רענון ==========
+            document.getElementById('refreshBtn').addEventListener('click', () => {
+                clearCache();
+                loadData(true);
+            });
+
+            // ========== טעינה ראשונית ==========
+            loadData();
+        })();
     </script>
 </body>
 </html>
