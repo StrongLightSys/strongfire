@@ -14,6 +14,7 @@
             --bg-topbar-btn: #E2E8F0; --text-topbar-btn: #0F172A;
             --table-header-bg: #F1F5F9; --table-header-text: #1E293B; --table-row-hover: #F1F5F9;
             --sidebar-border: #E2E8F0; --sidebar-logo-color: #0F172A;
+            --spinner-color: #3B82F6;
         }
         body.dark {
             --bg-body: #0F172A; --text-primary: #F1F5F9;
@@ -23,6 +24,7 @@
             --bg-topbar-btn: #334155; --text-topbar-btn: #F1F5F9;
             --table-header-bg: #1E293B; --table-header-text: #CBD5E1; --table-row-hover: #334155;
             --sidebar-border: #1E293B; --sidebar-logo-color: #F1F5F9;
+            --spinner-color: #60A5FA;
         }
 
         * { box-sizing: border-box; margin:0; padding:0; }
@@ -55,7 +57,6 @@
             font-size: 1.3rem;
             font-weight: 700;
         }
-        .sidebar-logo span { font-size: 1.1rem; }
         .sidebar-nav {
             flex: 1;
             padding: 0.5rem 0.75rem;
@@ -102,6 +103,7 @@
             border: none;
             cursor: pointer;
             font-size: 0.9rem;
+            transition: background 0.2s;
         }
 
         /* ========== תוכן ראשי ========== */
@@ -110,6 +112,15 @@
             padding: 24px;
             overflow-y: auto;
             height: 100vh;
+            position: relative;
+        }
+
+        .page-content {
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+        .page-content.visible {
+            opacity: 1;
         }
 
         /* ========== טבלה ========== */
@@ -163,6 +174,17 @@
         .btn:hover { opacity: 0.8; }
         .btn-primary { background: #3B82F6; color: #fff; }
 
+        /* ========== ספינר ========== */
+        .spinner {
+            display: inline-block;
+            width: 20px; height: 20px;
+            border: 2px solid rgba(0,0,0,0.1);
+            border-left-color: var(--spinner-color);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         .toast {
             position: fixed;
             bottom: 20px; left: 20px;
@@ -171,7 +193,10 @@
             border-radius: 0.5rem;
             z-index: 200;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideUp 0.3s ease;
         }
+        @keyframes slideUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+
         #error-message { color: #EF4444; margin: 1rem 0; }
     </style>
 </head>
@@ -194,14 +219,63 @@
 
     <!-- ========== תוכן ראשי ========== -->
     <div class="content-area" id="mainContent">
-        <!-- דפים יוכנסו לכאן דינמית -->
+        <!-- דפים יוכנסו דינמית -->
     </div>
 
     <script>
         (function() {
             const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
             const CACHE_KEY = 'employees_cache';
-            const CACHE_MAX_AGE = 300000;
+            const CACHE_MAX_AGE = 300000; // 5 דקות
+
+            // ========== שירות API ==========
+            const apiService = {
+                jsonp(url) {
+                    return new Promise((resolve, reject) => {
+                        const callback = 'cb_' + Date.now();
+                        const script = document.createElement('script');
+                        window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
+                        script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
+                        script.onerror = () => { delete window[callback]; script.remove(); reject(new Error('JSONP error')); };
+                        document.body.appendChild(script);
+                    });
+                },
+                postForm(action, data) {
+                    const iframe = document.createElement('iframe');
+                    iframe.name = 'hf_' + Date.now();
+                    iframe.style.display = 'none';
+                    document.body.appendChild(iframe);
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = API_URL;
+                    form.target = iframe.name;
+                    form.style.display = 'none';
+                    form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
+                        Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
+                    document.body.appendChild(form);
+                    form.submit();
+                    setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
+                }
+            };
+
+            // ========== שירות מטמון ==========
+            const cacheService = {
+                get() {
+                    const cached = sessionStorage.getItem(CACHE_KEY);
+                    if (!cached) return null;
+                    try {
+                        const { data, timestamp } = JSON.parse(cached);
+                        if (Date.now() - timestamp < CACHE_MAX_AGE) return data;
+                    } catch(e) {}
+                    return null;
+                },
+                set(data) {
+                    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+                },
+                clear() {
+                    sessionStorage.removeItem(CACHE_KEY);
+                }
+            };
 
             // ========== מצב גלובלי ==========
             const state = {
@@ -209,40 +283,6 @@
                 isLoading: false,
                 error: null
             };
-
-            // ========== כלי עזר ==========
-            function jsonp(url) {
-                return new Promise((resolve, reject) => {
-                    const callback = 'cb_' + Date.now();
-                    const script = document.createElement('script');
-                    window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
-                    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
-                    script.onerror = () => { delete window[callback]; script.remove(); reject(new Error('JSONP error')); };
-                    document.body.appendChild(script);
-                });
-            }
-
-            function postForm(action, data) {
-                const iframe = document.createElement('iframe');
-                iframe.name = 'hf_' + Date.now();
-                iframe.style.display = 'none';
-                document.body.appendChild(iframe);
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = API_URL;
-                form.target = iframe.name;
-                form.style.display = 'none';
-                form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
-                    Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
-                document.body.appendChild(form);
-                form.submit();
-                setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
-            }
-
-            function showToast(msg) {
-                const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
-                document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
-            }
 
             function formatDisplay(val, col) {
                 if (!val) return '';
@@ -253,35 +293,23 @@
                 return val;
             }
 
-            // ========== מטמון ==========
-            function getCached() {
-                const cached = sessionStorage.getItem(CACHE_KEY);
-                if (!cached) return null;
-                try {
-                    const { data, timestamp } = JSON.parse(cached);
-                    if (Date.now() - timestamp < CACHE_MAX_AGE) return data;
-                } catch(e) {}
-                return null;
-            }
-            function setCache(data) {
-                sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
-            }
-            function clearCache() {
-                sessionStorage.removeItem(CACHE_KEY);
+            function showToast(msg) {
+                const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+                document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
             }
 
-            // ========== גישה לשרת ==========
+            // ========== טעינת נתונים ==========
             async function fetchFromServer() {
                 state.isLoading = true;
                 try {
-                    const employees = await jsonp(API_URL + '?action=get&sheet=employees');
+                    const employees = await apiService.jsonp(API_URL + '?action=get&sheet=employees');
                     if (!employees || !Array.isArray(employees)) throw new Error('תשובה לא תקינה מהשרת');
                     state.employees = employees;
                     state.error = null;
-                    setCache(employees);
+                    cacheService.set(employees);
                 } catch(e) {
                     state.error = e.message;
-                    const cached = getCached();
+                    const cached = cacheService.get();
                     if (cached) {
                         state.employees = cached;
                         state.error = null;
@@ -293,7 +321,7 @@
             }
 
             async function loadData(forceRefresh = false) {
-                const cached = getCached();
+                const cached = cacheService.get();
                 if (!forceRefresh && cached) {
                     state.employees = cached;
                     renderEmployeesPage();
@@ -306,20 +334,35 @@
                 renderEmployeesPage();
             }
 
-            // ========== תצוגת דף עובדים ==========
+            // ========== דף עובדים ==========
             function renderEmployeesPage() {
                 const contentEl = document.getElementById('mainContent');
                 if (!contentEl) return;
 
-                let html = '<h1 class="text-2xl font-bold mb-5">מאבטחים</h1>';
-                html += '<button id="refreshBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>';
-                html += '<div id="error-message" style="display:none;"></div>';
-                html += '<div id="employeesTableContainer"></div>';
+                let html = '<div class="page-content">';
+                html += '<h1 style="font-size:1.5rem; font-weight:bold; margin-bottom:1rem;">👥 מאבטחים</h1>';
 
+                if (state.isLoading) {
+                    html += '<div style="display:flex; align-items:center; gap:0.5rem;"><span class="spinner"></span> טוען נתונים...</div>';
+                } else {
+                    html += '<button id="refreshBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>';
+                    html += '<div id="error-message" style="display:none;"></div>';
+                    html += '<div id="employeesTableContainer"></div>';
+                }
+                html += '</div>';
                 contentEl.innerHTML = html;
+
+                // הפעל אנימציה
+                requestAnimationFrame(() => {
+                    const page = contentEl.querySelector('.page-content');
+                    if (page) page.classList.add('visible');
+                });
+
+                if (state.isLoading) return; // הספינר ימשיך להסתובב, רענון יגיע כשהנתונים יגיעו
 
                 const tableContainer = document.getElementById('employeesTableContainer');
                 const errorEl = document.getElementById('error-message');
+                if (!tableContainer) return;
 
                 if (state.error && state.employees.length === 0) {
                     errorEl.style.display = 'block';
@@ -349,10 +392,13 @@
                 tableContainer.innerHTML = tableHtml;
 
                 // כפתור רענון
-                document.getElementById('refreshBtn').addEventListener('click', () => {
-                    clearCache();
-                    loadData(true);
-                });
+                const refreshBtn = document.getElementById('refreshBtn');
+                if (refreshBtn) {
+                    refreshBtn.addEventListener('click', () => {
+                        cacheService.clear();
+                        loadData(true);
+                    });
+                }
             }
 
             // ========== עריכת תאים (Event Delegation) ==========
@@ -383,7 +429,7 @@
                     } else {
                         payload.national_id = key;
                     }
-                    postForm('update', payload);
+                    apiService.postForm('update', payload);
                     showToast('עודכן');
 
                     // רענון שקט
@@ -394,19 +440,22 @@
             });
 
             // ========== ניווט ==========
-            let currentPage = 'employees';
+            let currentPage = sessionStorage.getItem('strongfire_currentPage') || 'employees';
             const pageRenderers = {
                 dashboard: () => {
-                    document.getElementById('mainContent').innerHTML = '<h1>לוח בקרה</h1><p>בקרוב...</p>';
+                    const c = document.getElementById('mainContent');
+                    c.innerHTML = '<div class="page-content visible"><h1>📊 לוח בקרה</h1><p>בקרוב...</p></div>';
                 },
                 employees: renderEmployeesPage,
                 weapons: () => {
-                    document.getElementById('mainContent').innerHTML = '<h1>נשקים</h1><p>בקרוב...</p>';
+                    const c = document.getElementById('mainContent');
+                    c.innerHTML = '<div class="page-content visible"><h1>🔫 נשקים</h1><p>בקרוב...</p></div>';
                 }
             };
 
             function navigateTo(page) {
                 currentPage = page;
+                sessionStorage.setItem('strongfire_currentPage', page);
                 document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
                 const activeMenu = document.querySelector(`.menu-item[data-page="${page}"]`);
                 if (activeMenu) activeMenu.classList.add('active');
@@ -425,7 +474,9 @@
                 document.body.classList.toggle('dark', t === 'dark');
                 localStorage.setItem('strongfire_theme', t);
                 const btn = document.getElementById('themeToggleSide');
-                if (btn) btn.innerHTML = t === 'dark' ? '☀️ מצב בהיר' : '🌙 מצב כהה';
+                if (btn) {
+                    btn.innerHTML = t === 'dark' ? '☀️ מצב בהיר' : '🌙 מצב כהה';
+                }
             }
             document.getElementById('themeToggleSide').addEventListener('click', () => {
                 const newTheme = document.body.classList.contains('dark') ? 'light' : 'dark';
@@ -433,11 +484,9 @@
             });
 
             // ========== אתחול ==========
-            (function init() {
-                const theme = localStorage.getItem('strongfire_theme') || 'dark';
-                setTheme(theme);
-                navigateTo('employees');
-            })();
+            const savedTheme = localStorage.getItem('strongfire_theme') || 'dark';
+            setTheme(savedTheme);
+            navigateTo(currentPage);
         })();
     </script>
 </body>
