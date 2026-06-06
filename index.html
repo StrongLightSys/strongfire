@@ -50,13 +50,24 @@
             document.body.appendChild(form);
             form.submit();
 
-            // ניקוי
             setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
         }
 
         function showToast(msg) {
             const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
             document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
+        }
+
+        function formatDisplay(val, col) {
+            if (!val) return '';
+            if (col.includes('expiry') || col.includes('date')) {
+                // try to format as dd/mm/yyyy
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    return d.toLocaleDateString('he-IL');
+                }
+            }
+            return val;
         }
 
         async function loadEmployees() {
@@ -71,30 +82,42 @@
                 employees.forEach(row => {
                     html += '<tr>';
                     headers.forEach(h => {
-                        const val = row[h] !== undefined ? row[h] : '';
-                        // כל התאים ניתנים לעריכה, למעט uid ו‑national_id
-                        const noEdit = (h === 'uid' || h === 'national_id');
-                        html += `<td data-editable="${noEdit ? '0' : '1'}" data-col="${h}" data-key="${row['national_id']}" data-current="${val}">${val}</td>`;
+                        const raw = row[h] !== undefined ? row[h] : '';
+                        const display = formatDisplay(raw, h);
+                        // editable everything except uid & national_id
+                        const editable = (h === 'uid' || h === 'national_id') ? '0' : '1';
+                        html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}" data-display="${display}">${display}</td>`;
                     });
                     html += '</tr>';
                 });
                 html += '</tbody></table>';
                 document.getElementById('content').innerHTML = html;
-                document.querySelectorAll('td[data-editable="1"]').forEach(td => {
-                    td.addEventListener('click', async () => {
-                        const col = td.dataset.col, key = td.dataset.key, cur = td.dataset.current;
-                        const val = prompt('ערוך ' + col, cur);
-                        if (val !== null && val !== cur) {
-                            postForm('update', { sheet: 'employees', national_id: key, [col]: val });
-                            showToast('עודכן – מרענן…');
-                            // רענון מהיר
-                            setTimeout(loadEmployees, 1500);
-                        }
-                    });
-                });
+                attachEditHandlers();
             } catch(e) {
                 document.getElementById('content').innerHTML = '<p style="color:red;">שגיאה: ' + e.message + '</p>';
             }
+        }
+
+        function attachEditHandlers() {
+            document.querySelectorAll('td[data-editable="1"]').forEach(td => {
+                td.addEventListener('click', async () => {
+                    const col = td.dataset.col;
+                    const key = td.dataset.key;
+                    const cur = td.dataset.current;   // raw value (ISO for dates)
+                    const val = prompt('ערוך ' + col, cur);
+                    if (val !== null && val !== cur) {
+                        // עדכון מיידי בתצוגה
+                        td.dataset.current = val;
+                        td.dataset.display = formatDisplay(val, col);
+                        td.textContent = formatDisplay(val, col);
+                        // שליחה לשרת
+                        postForm('update', { sheet: 'employees', national_id: key, [col]: val });
+                        showToast('עודכן – מרענן…');
+                        // רענון מהשרת אחרי 3 שניות
+                        setTimeout(loadEmployees, 3000);
+                    }
+                });
+            });
         }
 
         document.getElementById('refreshBtn').addEventListener('click', loadEmployees);
