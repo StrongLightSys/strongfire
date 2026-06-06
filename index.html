@@ -1,10 +1,9 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <title>StrongFire – עובדים</title>
-    <!-- Font Awesome (אופציונלי, להמשך) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* ========== משתני צבע (Light / Dark) ========== */
         :root {
             --bg-body: #F8FAFC; --text-primary: #0F172A;
             --bg-card: rgba(255,255,255,0.85); --card-shadow: 0 4px 16px rgba(0,0,0,0.04);
@@ -20,7 +19,6 @@
             --table-header-bg: #1E293B; --table-header-text: #CBD5E1; --table-row-hover: #334155;
         }
 
-        /* ========== איפוס ובסיס ========== */
         * { box-sizing: border-box; margin:0; padding:0; }
         body {
             font-family: 'Segoe UI','Inter',system-ui,sans-serif;
@@ -30,7 +28,6 @@
             padding: 2rem;
         }
 
-        /* ========== טבלה ========== */
         table {
             width: 100%;
             border-collapse: collapse;
@@ -64,7 +61,6 @@
             background: rgba(59,130,246,0.18);
         }
 
-        /* ========== כפתורים ========== */
         .btn {
             display: inline-flex;
             align-items: center;
@@ -92,3 +88,124 @@
         }
     </style>
 </head>
+<body>
+    <h1>StrongFire – עובדים</h1>
+    <button id="refreshBtn" class="btn btn-primary" style="margin-bottom:1rem;">🔄 רענן</button>
+    <div id="content">טוען…</div>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbx-MqUzAFZlFfbOGSzZYiR3DF4dd06xJ7N4fe7KQHS-v99VLJ0RcwbudPS95Ycsm1Tv/exec';
+
+        function jsonp(url) {
+            return new Promise((resolve, reject) => {
+                const callback = 'cb_' + Date.now();
+                const script = document.createElement('script');
+                window[callback] = (data) => { delete window[callback]; script.remove(); resolve(data); };
+                script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + callback;
+                script.onerror = () => { delete window[callback]; script.remove(); reject(new Error('JSONP error')); };
+                document.body.appendChild(script);
+            });
+        }
+
+        function postForm(action, data) {
+            const iframe = document.createElement('iframe');
+            iframe.name = 'hf_' + Date.now();
+            iframe.style.display = 'none';
+            document.body.appendChild(iframe);
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = API_URL;
+            form.target = iframe.name;
+            form.style.display = 'none';
+            form.innerHTML = `<input name="action" value="${action}"><input name="sheet" value="${data.sheet || 'employees'}">` +
+                Object.entries(data).map(([k,v]) => `<input name="${k}" value="${v}">`).join('');
+            document.body.appendChild(form);
+            form.submit();
+            setTimeout(() => { form.remove(); iframe.remove(); }, 1000);
+        }
+
+        function showToast(msg) {
+            const toast = document.createElement('div'); toast.className = 'toast'; toast.innerText = msg;
+            document.body.appendChild(toast); setTimeout(() => toast.remove(), 2500);
+        }
+
+        function formatDisplay(val, col) {
+            if (!val) return '';
+            if (col.includes('expiry') || col.includes('date')) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) {
+                    return d.toLocaleDateString('he-IL');
+                }
+            }
+            return val;
+        }
+
+        let currentEmployees = [];
+
+        async function loadEmployees() {
+            try {
+                const employees = await jsonp(API_URL + '?action=get&sheet=employees');
+                if (!employees || employees.length === 0) {
+                    document.getElementById('content').innerHTML = '<p>אין נתונים.</p>';
+                    return;
+                }
+                currentEmployees = employees;
+                renderTable(employees);
+            } catch(e) {
+                document.getElementById('content').innerHTML = '<p style="color:red;">שגיאה: ' + e.message + '</p>';
+            }
+        }
+
+        function renderTable(employees) {
+            const headers = Object.keys(employees[0]);
+            let html = '<table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+            employees.forEach(row => {
+                html += '<tr>';
+                headers.forEach(h => {
+                    const raw = row[h] !== undefined ? row[h] : '';
+                    const display = formatDisplay(raw, h);
+                    const editable = (h === 'uid') ? '0' : '1';
+                    html += `<td data-editable="${editable}" data-col="${h}" data-key="${row['national_id']}" data-current="${raw}" data-display="${display}">${display}</td>`;
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('content').innerHTML = html;
+            attachEditHandlers();
+        }
+
+        function attachEditHandlers() {
+            document.querySelectorAll('td[data-editable="1"]').forEach(td => {
+                td.addEventListener('click', async () => {
+                    const col = td.dataset.col;
+                    const key = td.dataset.key;
+                    const cur = td.dataset.current;
+                    const val = prompt('ערוך ' + col, cur);
+                    if (val !== null && val !== cur) {
+                        td.dataset.current = val;
+                        td.dataset.display = formatDisplay(val, col);
+                        td.textContent = formatDisplay(val, col);
+
+                        const payload = { sheet: 'employees', [col]: val };
+                        if (col === 'national_id') {
+                            payload.old_national_id = key;
+                            payload.new_national_id = val;
+                        } else {
+                            payload.national_id = key;
+                        }
+                        postForm('update', payload);
+                        showToast('עודכן');
+
+                        setTimeout(async () => {
+                            await loadEmployees();
+                        }, 3000);
+                    }
+                });
+            });
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', loadEmployees);
+        loadEmployees();
+    </script>
+</body>
+</html>
