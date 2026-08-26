@@ -14,8 +14,10 @@
     html, body {
       width: 100%;
       height: 100%;
-      overflow: hidden; /* מונע גלילה חיצונית */
-      background: #0f172a; /* רקע כהה קבוע */
+      overflow: hidden;
+      background: #0f172a;           /* רקע כהה קבוע */
+      overscroll-behavior: none;      /* מבטל חשיפת רקע לבן בקצוות */
+      -webkit-overflow-scrolling: touch;
     }
 
     iframe {
@@ -24,11 +26,12 @@
       left: 0;
       width: 100%;
       height: 100%;
-      height: 100dvh; /* גובה מלא של חלון התצוגה */
+      height: 100dvh;                /* גובה דינמי – מונע רווחים */
       border: none;
       display: block;
-      background: #ffffff; /* רקע לבן של הטופס */
-      overflow-y: auto;    /* גלילה פנימית בתוך iframe */
+      background: #ffffff;            /* לבן רק בתוך תוכן הטופס */
+      overflow-y: auto;               /* גלילה פנימית בלבד */
+      overscroll-behavior: contain;   /* מונע גלילת יתר פנימית */
       -webkit-overflow-scrolling: touch;
     }
   </style>
